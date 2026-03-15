@@ -1,0 +1,1164 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2D Minecraft Sandbox</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #1e1e1e;
+      font-family: Arial, sans-serif;
+      color: #ffffff;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      image-rendering: pixelated;
+      background: #7ec0ee;
+    }
+    .hud {
+      position: fixed;
+      left: 12px;
+      top: 10px;
+      padding: 8px 10px;
+      background: rgba(0, 0, 0, 0.45);
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.4;
+      user-select: none;
+      pointer-events: none;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div class="hud">
+    A / D：左右移动<br />
+    Space：跳跃<br />
+    鼠标左键：攻击生物 / 单点破坏方块<br />
+    鼠标右键：单点放置原石<br />
+    E：打开/关闭背包，1-9：选择快捷栏
+  </div>
+  <canvas id="game"></canvas>
+  <script>
+    const TILE_SIZE = 32;
+    const WORLD_WIDTH = 900;
+    const WORLD_HEIGHT = 420;
+    const LAYER_OFFSET_Y = 10;
+
+    const TILE = {
+      AIR: "air",
+      GRASS: "grass",
+      DIRT: "dirt",
+      STONE: "stone",
+      COAL: "coal",
+      IRON: "iron",
+      GOLD: "gold",
+      DIAMOND: "diamond",
+      BEDROCK: "bedrock",
+      VOID: "void",
+      WOOD: "wood",
+      LEAF: "leaf"
+    };
+
+    const TILE_COLORS = {
+      [TILE.GRASS]: "#2ecc40",
+      [TILE.DIRT]: "#8b5a2b",
+      [TILE.STONE]: "#8d8d8d",
+      [TILE.COAL]: "#1a1a1a",
+      [TILE.IRON]: "#f2994a",
+      [TILE.GOLD]: "#f2d94e",
+      [TILE.DIAMOND]: "#00f5ff",
+      [TILE.BEDROCK]: "#4b4b4b",
+      [TILE.WOOD]: "#9c6b30",
+      [TILE.LEAF]: "#3cae4a"
+    };
+
+    const DROP_COLORS = {
+      grass_drop: "#2ecc40",
+      raw_pork: "#ff9dad",
+      wool: "#f2f2f2",
+      mutton: "#c67b6e",
+      raw_beef: "#b45443",
+      leather: "#8a5a2b",
+      wood_plank: "#c58a43",
+      crafting_table: "#7d5231"
+    };
+
+    const ANIMAL_STATS = {
+      pig: { hp: 10, drops: ["raw_pork"] },
+      sheep: { hp: 8, drops: ["wool", "mutton"] },
+      cow: { hp: 10, drops: ["raw_beef", "leather"] }
+    };
+
+    const BLOCK_BREAK_DROP_MAP = {
+      [TILE.GRASS]: TILE.GRASS,
+      [TILE.DIRT]: TILE.DIRT,
+      [TILE.STONE]: TILE.STONE,
+      [TILE.COAL]: TILE.COAL,
+      [TILE.IRON]: TILE.IRON,
+      [TILE.GOLD]: TILE.GOLD,
+      [TILE.DIAMOND]: TILE.DIAMOND,
+      [TILE.WOOD]: TILE.WOOD,
+      [TILE.LEAF]: TILE.LEAF
+    };
+
+    const ANIMAL_TYPES = ["pig", "cow", "sheep"];
+    const FOOD_HEAL = {
+      raw_pork: 2,
+      mutton: 2,
+      raw_beef: 2
+    };
+
+    const SOLID_TILES = new Set([
+      TILE.GRASS,
+      TILE.DIRT,
+      TILE.STONE,
+      TILE.COAL,
+      TILE.IRON,
+      TILE.GOLD,
+      TILE.DIAMOND,
+      TILE.BEDROCK,
+      TILE.LEAF
+    ]);
+
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const worldPixelWidth = WORLD_WIDTH * TILE_SIZE;
+    const worldPixelHeight = WORLD_HEIGHT * TILE_SIZE;
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    function createWorld() {
+      const world = Array.from({ length: WORLD_HEIGHT }, () =>
+        Array.from({ length: WORLD_WIDTH }, () => TILE.AIR)
+      );
+
+      for (let y = 0; y < WORLD_HEIGHT; y++) {
+        for (let x = 0; x < WORLD_WIDTH; x++) {
+          const depth = y - LAYER_OFFSET_Y;
+          let block = TILE.AIR;
+
+          if (depth < 0) {
+            block = TILE.AIR;
+          } else if (depth === 0) {
+            block = TILE.AIR;
+          } else if (depth === 1) {
+            block = TILE.GRASS;
+          } else if (depth >= 2 && depth <= 3) {
+            block = TILE.DIRT;
+          } else if (depth >= 4 && depth <= 99) {
+            block = TILE.STONE;
+          } else if (depth === 100) {
+            block = TILE.BEDROCK;
+          } else {
+            block = TILE.VOID;
+          }
+
+          world[y][x] = block;
+        }
+      }
+
+      generateOres(world);
+      generateTrees(world, 24);
+      return world;
+    }
+
+    function generateOres(world) {
+      for (let y = 0; y < WORLD_HEIGHT; y++) {
+        for (let x = 0; x < WORLD_WIDTH; x++) {
+          if (world[y][x] !== TILE.STONE) {
+            continue;
+          }
+          const r = Math.random();
+          if (r < 0.003) {
+            world[y][x] = TILE.DIAMOND;
+          } else if (r < 0.013) {
+            world[y][x] = TILE.GOLD;
+          } else if (r < 0.043) {
+            world[y][x] = TILE.IRON;
+          } else if (r < 0.103) {
+            world[y][x] = TILE.COAL;
+          }
+        }
+      }
+    }
+
+    function generateTrees(world, count) {
+      for (let i = 0; i < count; i++) {
+        generateSingleTree(world);
+      }
+    }
+
+    function generateSingleTree(world) {
+      const grassY = LAYER_OFFSET_Y + 1;
+      const treeX = Math.floor(Math.random() * (WORLD_WIDTH - 6)) + 3;
+      const trunkHeight = 4 + Math.floor(Math.random() * 3);
+      const trunkBaseY = grassY - 1;
+
+      for (let i = 0; i < trunkHeight; i++) {
+        const y = trunkBaseY - i;
+        if (inWorld(treeX, y)) {
+          world[y][treeX] = TILE.WOOD;
+        }
+      }
+
+      const topY = trunkBaseY - (trunkHeight - 1);
+      for (let ly = topY - 1; ly <= topY + 1; ly++) {
+        for (let lx = treeX - 1; lx <= treeX + 1; lx++) {
+          if (!inWorld(lx, ly)) {
+            continue;
+          }
+          if (world[ly][lx] === TILE.AIR) {
+            world[ly][lx] = TILE.LEAF;
+          }
+        }
+      }
+    }
+
+    function inWorld(tx, ty) {
+      return tx >= 0 && tx < WORLD_WIDTH && ty >= 0 && ty < WORLD_HEIGHT;
+    }
+
+    function getTile(tx, ty) {
+      if (tx < 0 || tx >= WORLD_WIDTH) {
+        return TILE.BEDROCK;
+      }
+      if (ty < 0) {
+        return TILE.AIR;
+      }
+      if (ty >= WORLD_HEIGHT) {
+        return TILE.BEDROCK;
+      }
+      return world[ty][tx];
+    }
+
+    function isSolid(tile) {
+      return SOLID_TILES.has(tile);
+    }
+
+    function isEntityInsideSolid(entity) {
+      const left = Math.floor(entity.x / TILE_SIZE);
+      const right = Math.floor((entity.x + entity.w - 1) / TILE_SIZE);
+      const top = Math.floor(entity.y / TILE_SIZE);
+      const bottom = Math.floor((entity.y + entity.h - 1) / TILE_SIZE);
+
+      for (let ty = top; ty <= bottom; ty++) {
+        for (let tx = left; tx <= right; tx++) {
+          if (isSolid(getTile(tx, ty))) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function createPlayer() {
+      return {
+        kind: "player",
+        x: 12 * TILE_SIZE,
+        y: (LAYER_OFFSET_Y - 2) * TILE_SIZE,
+        w: 24,
+        h: 44,
+        vx: 0,
+        vy: 0,
+        speed: 230,
+        jumpPower: 480,
+        hp: 20,
+        maxHp: 20,
+        airbornePeakY: (LAYER_OFFSET_Y - 2) * TILE_SIZE,
+        ignoreLandingDamage: false,
+        onGround: false,
+        color: "#2d7ff9"
+      };
+    }
+
+    function createAnimal(type, x) {
+      const colorMap = {
+        pig: "#f7a8b8",
+        cow: "#5d4037",
+        sheep: "#ececec"
+      };
+      const stats = ANIMAL_STATS[type];
+
+      return {
+        kind: type,
+        x,
+        y: (LAYER_OFFSET_Y - 1) * TILE_SIZE,
+        w: 26,
+        h: 22,
+        vx: 0,
+        vy: 0,
+        speed: 70 + Math.random() * 30,
+        direction: Math.random() > 0.5 ? 1 : -1,
+        aiTimer: 0.6 + Math.random() * 1.4,
+        jumpCooldown: 0.4 + Math.random() * 0.8,
+        jumpPower: 360 + Math.random() * 70,
+        onGround: false,
+        color: colorMap[type],
+        hp: stats.hp,
+        maxHp: stats.hp
+      };
+    }
+
+    function spawnAnimals() {
+      return ANIMAL_TYPES.map((type, i) => {
+        const x = (20 + i * 10) * TILE_SIZE + Math.random() * 120;
+        return createAnimal(type, x);
+      });
+    }
+
+    function createClouds() {
+      return Array.from({ length: 7 }, (_, i) => ({
+        x: (i / 7) * canvas.width + Math.random() * 80,
+        y: 40 + Math.random() * 160,
+        w: 80 + Math.random() * 90,
+        h: 24 + Math.random() * 18,
+        speed: 10 + Math.random() * 14
+      }));
+    }
+
+    const world = createWorld();
+    const player = createPlayer();
+    const animals = spawnAnimals();
+    const drops = [];
+    const inventory = {};
+    const hotbarSlots = Array.from({ length: 9 }, () => null);
+    let selectedHotbarIndex = 0;
+    let inventoryOpen = false;
+    const clouds = createClouds();
+    const camera = { x: 0, y: 0 };
+    const keys = new Set();
+    const uiRects = {
+      craftWoodPlank: null,
+      craftTable: null
+    };
+    const SPAWN = {
+      timer: 0,
+      interval: 4,
+      maxAnimals: 12
+    };
+
+    const PHYSICS = {
+      gravity: 1100,
+      maxFallSpeed: 900
+    };
+
+    window.addEventListener("keydown", (e) => {
+      if (["KeyA", "KeyD", "Space", "KeyE", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"].includes(e.code)) {
+        e.preventDefault();
+      }
+      if (e.code === "KeyE" && !e.repeat) {
+        inventoryOpen = !inventoryOpen;
+      }
+      if (/^Digit[1-9]$/.test(e.code)) {
+        selectedHotbarIndex = Number(e.code.slice(5)) - 1;
+      }
+      keys.add(e.code);
+    });
+
+    window.addEventListener("keyup", (e) => {
+      keys.delete(e.code);
+    });
+
+    canvas.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+    });
+
+    canvas.addEventListener("mousedown", (e) => {
+      handleMouseAction(e);
+    });
+
+    function updatePlayer(dt) {
+      const wasOnGround = player.onGround;
+      let didJump = false;
+      const moveLeft = keys.has("KeyA");
+      const moveRight = keys.has("KeyD");
+      let intent = 0;
+      if (moveLeft) intent -= 1;
+      if (moveRight) intent += 1;
+
+      player.vx = intent * player.speed;
+
+      if (keys.has("Space") && player.onGround) {
+        player.vy = -player.jumpPower;
+        player.onGround = false;
+        didJump = true;
+      }
+
+      applyPhysicsAndCollisions(player, dt);
+      updatePlayerFallDamage(wasOnGround, didJump);
+      applyPlayerStuckDamage(dt);
+    }
+
+    function updatePlayerFallDamage(wasOnGround, didJump) {
+      if (wasOnGround && !player.onGround) {
+        player.airbornePeakY = player.y;
+        player.ignoreLandingDamage = didJump;
+      }
+
+      if (!player.onGround && player.y < player.airbornePeakY) {
+        player.airbornePeakY = player.y;
+      }
+
+      if (!wasOnGround && player.onGround) {
+        if (player.ignoreLandingDamage) {
+          player.ignoreLandingDamage = false;
+        } else {
+          const fallPixels = player.y - player.airbornePeakY;
+          const fallBlocks = Math.floor(fallPixels / TILE_SIZE);
+          const damage = Math.max(0, fallBlocks - 2);
+          if (damage > 0) {
+            player.hp = Math.max(0, player.hp - damage);
+          }
+        }
+      }
+
+      if (player.onGround) {
+        player.airbornePeakY = player.y;
+      }
+    }
+
+    function applyPlayerStuckDamage(dt) {
+      if (isEntityInsideSolid(player)) {
+        player.hp = Math.max(0, player.hp - 4 * dt);
+      }
+    }
+
+    function resetGameIfPlayerDead() {
+      if (player.hp <= 0) {
+        window.location.reload();
+        return true;
+      }
+      return false;
+    }
+
+    function updateAnimals(dt) {
+      for (let i = animals.length - 1; i >= 0; i--) {
+        const animal = animals[i];
+        animal.aiTimer -= dt;
+        animal.jumpCooldown -= dt;
+        if (animal.aiTimer <= 0) {
+          animal.direction = Math.random() < 0.5 ? -1 : 1;
+          animal.aiTimer = 0.8 + Math.random() * 1.8;
+        }
+
+        if (animal.onGround && animal.jumpCooldown <= 0 && shouldAnimalJump(animal)) {
+          animal.vy = -animal.jumpPower;
+          animal.onGround = false;
+          animal.jumpCooldown = 0.6 + Math.random() * 0.8;
+        }
+
+        animal.vx = animal.direction * animal.speed;
+        const collided = applyPhysicsAndCollisions(animal, dt);
+        if (collided.x) {
+          animal.direction *= -1;
+        }
+
+        if (isEntityInsideSolid(animal)) {
+          animal.hp -= 5 * dt;
+          if (animal.hp <= 0) {
+            spawnAnimalDrops(animal);
+            animals.splice(i, 1);
+          }
+        }
+      }
+    }
+
+    function shouldAnimalJump(animal) {
+      return isAnimalInPit(animal) || isAnimalAtStep(animal);
+    }
+
+    function isAnimalInPit(animal) {
+      const centerX = Math.floor((animal.x + animal.w / 2) / TILE_SIZE);
+      const bodyY = Math.floor((animal.y + animal.h * 0.5) / TILE_SIZE);
+      const leftWall = isSolid(getTile(centerX - 1, bodyY));
+      const rightWall = isSolid(getTile(centerX + 1, bodyY));
+      return leftWall && rightWall;
+    }
+
+    function isAnimalAtStep(animal) {
+      const aheadTileX =
+        animal.direction > 0
+          ? Math.floor((animal.x + animal.w + 1) / TILE_SIZE)
+          : Math.floor((animal.x - 1) / TILE_SIZE);
+      const feetY = Math.floor((animal.y + animal.h - 1) / TILE_SIZE);
+      const blockAhead = isSolid(getTile(aheadTileX, feetY));
+      const spaceAbove = !isSolid(getTile(aheadTileX, feetY - 1));
+      return blockAhead && spaceAbove;
+    }
+
+    function updateClouds(dt) {
+      for (const cloud of clouds) {
+        cloud.x += cloud.speed * dt;
+        if (cloud.x > canvas.width + cloud.w + 30) {
+          cloud.x = -cloud.w - 30;
+          cloud.y = 40 + Math.random() * 160;
+        }
+      }
+    }
+
+    function updateDrops(dt) {
+      const pickupRadius = 28;
+      const playerCenterX = player.x + player.w / 2;
+      const playerCenterY = player.y + player.h / 2;
+
+      for (let i = drops.length - 1; i >= 0; i--) {
+        const drop = drops[i];
+        const dx = playerCenterX - drop.x;
+        const dy = playerCenterY - drop.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq <= pickupRadius * pickupRadius) {
+          addToInventory(drop.type, 1);
+          drops.splice(i, 1);
+          continue;
+        }
+        drop.phase += dt;
+      }
+    }
+
+    function updateAnimalSpawning(dt) {
+      SPAWN.timer -= dt;
+      if (SPAWN.timer > 0) {
+        return;
+      }
+      SPAWN.timer = SPAWN.interval;
+      if (animals.length >= SPAWN.maxAnimals) {
+        return;
+      }
+
+      const type = ANIMAL_TYPES[Math.floor(Math.random() * ANIMAL_TYPES.length)];
+      const aroundPlayerTiles = 12 + Math.floor(Math.random() * 8);
+      const direction = Math.random() < 0.5 ? -1 : 1;
+      const spawnTileX = Math.floor((player.x + player.w / 2) / TILE_SIZE) + direction * aroundPlayerTiles;
+      const x = Math.max(2 * TILE_SIZE, Math.min((WORLD_WIDTH - 3) * TILE_SIZE, spawnTileX * TILE_SIZE));
+      animals.push(createAnimal(type, x));
+    }
+
+    function handleMouseAction(event) {
+      if (inventoryOpen) {
+        handleInventoryClick(event);
+        return;
+      }
+      const pointer = screenToWorld(event);
+      if (event.button === 0) {
+        if (tryDamageAnimal(pointer.worldX, pointer.worldY)) {
+          return;
+        }
+        tryBreakBlocksArea(pointer.worldX, pointer.worldY);
+        return;
+      }
+      if (event.button === 2) {
+        if (tryConsumeSelectedFood()) {
+          return;
+        }
+        tryPlaceStoneArea(pointer.worldX, pointer.worldY);
+      }
+    }
+
+    function tryConsumeSelectedFood() {
+      const selectedType = hotbarSlots[selectedHotbarIndex];
+      if (!selectedType) {
+        return false;
+      }
+      const healValue = FOOD_HEAL[selectedType];
+      if (!healValue) {
+        return false;
+      }
+      if (player.hp >= player.maxHp) {
+        return false;
+      }
+      if (!removeFromInventory(selectedType, 1)) {
+        return false;
+      }
+      player.hp = Math.min(player.maxHp, player.hp + healValue);
+      return true;
+    }
+
+    function screenToWorld(event) {
+      const rect = canvas.getBoundingClientRect();
+      const sx = (event.clientX - rect.left) * (canvas.width / rect.width);
+      const sy = (event.clientY - rect.top) * (canvas.height / rect.height);
+      return {
+        worldX: sx + camera.x,
+        worldY: sy + camera.y
+      };
+    }
+
+    function tryDamageAnimal(worldX, worldY) {
+      for (let i = animals.length - 1; i >= 0; i--) {
+        const animal = animals[i];
+        const inside =
+          worldX >= animal.x &&
+          worldX <= animal.x + animal.w &&
+          worldY >= animal.y &&
+          worldY <= animal.y + animal.h;
+
+        if (!inside) {
+          continue;
+        }
+
+        animal.hp -= 1;
+        if (animal.hp <= 0) {
+          spawnAnimalDrops(animal);
+          animals.splice(i, 1);
+        }
+        return true;
+      }
+      return false;
+    }
+
+    function spawnAnimalDrops(animal) {
+      const stats = ANIMAL_STATS[animal.kind];
+      for (const itemType of stats.drops) {
+        spawnDrop(itemType, animal.x + animal.w / 2, animal.y + animal.h / 2);
+      }
+    }
+
+    function tryBreakBlocksArea(worldX, worldY) {
+      const tx = Math.floor(worldX / TILE_SIZE);
+      const ty = Math.floor(worldY / TILE_SIZE);
+      if (!inWorld(tx, ty)) {
+        return false;
+      }
+      const tile = world[ty][tx];
+      const dropType = BLOCK_BREAK_DROP_MAP[tile];
+      if (!dropType) {
+        return false;
+      }
+      world[ty][tx] = TILE.AIR;
+      spawnDrop(dropType, tx * TILE_SIZE + TILE_SIZE * 0.5, ty * TILE_SIZE + TILE_SIZE * 0.5);
+      return true;
+    }
+
+    function tryPlaceStoneArea(worldX, worldY) {
+      const tx = Math.floor(worldX / TILE_SIZE);
+      const ty = Math.floor(worldY / TILE_SIZE);
+      if (!inWorld(tx, ty)) {
+        return;
+      }
+      const tile = world[ty][tx];
+      if (tile === TILE.AIR || tile === TILE.VOID) {
+        world[ty][tx] = TILE.STONE;
+      }
+    }
+
+    function addToInventory(type, amount) {
+      inventory[type] = (inventory[type] || 0) + amount;
+      syncHotbarSlots();
+    }
+
+    function removeFromInventory(type, amount) {
+      const current = inventory[type] || 0;
+      if (current < amount) {
+        return false;
+      }
+      inventory[type] = current - amount;
+      if (inventory[type] <= 0) {
+        delete inventory[type];
+      }
+      syncHotbarSlots();
+      return true;
+    }
+
+    function syncHotbarSlots() {
+      for (let i = 0; i < hotbarSlots.length; i++) {
+        const type = hotbarSlots[i];
+        if (type && !(inventory[type] > 0)) {
+          hotbarSlots[i] = null;
+        }
+      }
+
+      const used = new Set(hotbarSlots.filter(Boolean));
+      const items = Object.keys(inventory).filter((k) => inventory[k] > 0);
+      for (const item of items) {
+        if (used.has(item)) {
+          continue;
+        }
+        const emptyIndex = hotbarSlots.findIndex((v) => v === null);
+        if (emptyIndex === -1) {
+          break;
+        }
+        hotbarSlots[emptyIndex] = item;
+        used.add(item);
+      }
+    }
+
+    function handleInventoryClick(event) {
+      const rect = canvas.getBoundingClientRect();
+      const sx = (event.clientX - rect.left) * (canvas.width / rect.width);
+      const sy = (event.clientY - rect.top) * (canvas.height / rect.height);
+
+      if (isInsideRect(sx, sy, uiRects.craftWoodPlank)) {
+        craftWoodToPlank();
+        return true;
+      }
+      if (isInsideRect(sx, sy, uiRects.craftTable)) {
+        craftPlankToTable();
+        return true;
+      }
+      return false;
+    }
+
+    function isInsideRect(x, y, rect) {
+      if (!rect) {
+        return false;
+      }
+      return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+    }
+
+    function craftWoodToPlank() {
+      if (removeFromInventory(TILE.WOOD, 1)) {
+        addToInventory("wood_plank", 4);
+      }
+    }
+
+    function craftPlankToTable() {
+      if (removeFromInventory("wood_plank", 4)) {
+        addToInventory("crafting_table", 1);
+      }
+    }
+
+    function spawnDrop(type, x, y) {
+      drops.push({
+        type,
+        x,
+        y,
+        w: 12,
+        h: 12,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+
+    function applyPhysicsAndCollisions(entity, dt) {
+      entity.vy = Math.min(entity.vy + PHYSICS.gravity * dt, PHYSICS.maxFallSpeed);
+
+      const result = { x: false, y: false };
+
+      entity.x += entity.vx * dt;
+      if (entity.vx !== 0) {
+        const hitX = resolveHorizontalCollisions(entity);
+        if (hitX) {
+          result.x = true;
+        }
+      }
+
+      entity.y += entity.vy * dt;
+      entity.onGround = false;
+      if (entity.vy !== 0) {
+        const hitY = resolveVerticalCollisions(entity);
+        if (hitY) {
+          result.y = true;
+        }
+      }
+
+      return result;
+    }
+
+    function resolveHorizontalCollisions(entity) {
+      if (entity.vx > 0) {
+        const right = entity.x + entity.w;
+        const tx = Math.floor(right / TILE_SIZE);
+        const top = Math.floor(entity.y / TILE_SIZE);
+        const bottom = Math.floor((entity.y + entity.h - 1) / TILE_SIZE);
+
+        for (let ty = top; ty <= bottom; ty++) {
+          if (isSolid(getTile(tx, ty))) {
+            entity.x = tx * TILE_SIZE - entity.w - 0.01;
+            entity.vx = 0;
+            return true;
+          }
+        }
+      } else if (entity.vx < 0) {
+        const left = entity.x;
+        const tx = Math.floor(left / TILE_SIZE);
+        const top = Math.floor(entity.y / TILE_SIZE);
+        const bottom = Math.floor((entity.y + entity.h - 1) / TILE_SIZE);
+
+        for (let ty = top; ty <= bottom; ty++) {
+          if (isSolid(getTile(tx, ty))) {
+            entity.x = (tx + 1) * TILE_SIZE + 0.01;
+            entity.vx = 0;
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
+    function resolveVerticalCollisions(entity) {
+      if (entity.vy > 0) {
+        const bottom = entity.y + entity.h;
+        const ty = Math.floor(bottom / TILE_SIZE);
+        const left = Math.floor(entity.x / TILE_SIZE);
+        const right = Math.floor((entity.x + entity.w - 1) / TILE_SIZE);
+
+        for (let tx = left; tx <= right; tx++) {
+          if (isSolid(getTile(tx, ty))) {
+            entity.y = ty * TILE_SIZE - entity.h - 0.01;
+            entity.vy = 0;
+            entity.onGround = true;
+            return true;
+          }
+        }
+      } else if (entity.vy < 0) {
+        const top = entity.y;
+        const ty = Math.floor(top / TILE_SIZE);
+        const left = Math.floor(entity.x / TILE_SIZE);
+        const right = Math.floor((entity.x + entity.w - 1) / TILE_SIZE);
+
+        for (let tx = left; tx <= right; tx++) {
+          if (isSolid(getTile(tx, ty))) {
+            entity.y = (ty + 1) * TILE_SIZE + 0.01;
+            entity.vy = 0;
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
+    function updateCamera() {
+      const targetX = player.x + player.w / 2 - canvas.width / 2;
+      const targetY = player.y + player.h / 2 - canvas.height / 2;
+      camera.x = clamp(targetX, 0, Math.max(0, worldPixelWidth - canvas.width));
+      camera.y = clamp(targetY, 0, Math.max(0, worldPixelHeight - canvas.height));
+    }
+
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#87ceeb";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      renderSun();
+      renderClouds();
+      renderWorld();
+      renderDrops();
+      renderEntity(player);
+      for (const animal of animals) {
+        renderEntity(animal);
+      }
+
+      renderStats();
+      renderPlayerStars();
+      renderHotbar();
+      if (inventoryOpen) {
+        renderInventory();
+      }
+    }
+
+    function renderWorld() {
+      const startX = Math.max(0, Math.floor(camera.x / TILE_SIZE) - 1);
+      const endX = Math.min(WORLD_WIDTH - 1, Math.ceil((camera.x + canvas.width) / TILE_SIZE) + 1);
+      const startY = Math.max(0, Math.floor(camera.y / TILE_SIZE) - 1);
+      const endY = Math.min(WORLD_HEIGHT - 1, Math.ceil((camera.y + canvas.height) / TILE_SIZE) + 1);
+
+      for (let y = startY; y <= endY; y++) {
+        for (let x = startX; x <= endX; x++) {
+          const tile = world[y][x];
+          const color = TILE_COLORS[tile];
+          if (!color) continue;
+          const px = x * TILE_SIZE - camera.x;
+          const py = y * TILE_SIZE - camera.y;
+          ctx.fillStyle = color;
+          ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+        }
+      }
+    }
+
+    function renderSun() {
+      const x = canvas.width - 120;
+      const y = 90;
+      const radius = 36;
+      ctx.fillStyle = "#ffd54a";
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(255, 220, 120, 0.8)";
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 10; i++) {
+        const angle = (i / 10) * Math.PI * 2;
+        const inner = radius + 10;
+        const outer = radius + 20;
+        const x1 = x + Math.cos(angle) * inner;
+        const y1 = y + Math.sin(angle) * inner;
+        const x2 = x + Math.cos(angle) * outer;
+        const y2 = y + Math.sin(angle) * outer;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+    }
+
+    function renderClouds() {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+      for (const cloud of clouds) {
+        const x = cloud.x;
+        const y = cloud.y;
+        const w = cloud.w;
+        const h = cloud.h;
+        ctx.fillRect(x, y, w, h);
+        ctx.fillRect(x + 10, y - 10, w * 0.58, h);
+        ctx.fillRect(x + w * 0.45, y - 6, w * 0.48, h * 0.9);
+      }
+    }
+
+    function renderDrops() {
+      for (const drop of drops) {
+        const floatY = Math.sin(timeSeconds * 4 + drop.phase) * 3;
+        const px = drop.x - drop.w / 2 - camera.x;
+        const py = drop.y - drop.h / 2 - camera.y + floatY;
+        if (px + drop.w < 0 || py + drop.h < 0 || px > canvas.width || py > canvas.height) {
+          continue;
+        }
+        ctx.fillStyle = DROP_COLORS[drop.type] || TILE_COLORS[drop.type] || "#ffffff";
+        ctx.fillRect(px, py, drop.w, drop.h);
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
+        ctx.strokeRect(px, py, drop.w, drop.h);
+      }
+    }
+
+    function renderEntity(entity) {
+      const px = entity.x - camera.x;
+      const py = entity.y - camera.y;
+
+      ctx.fillStyle = entity.color;
+      ctx.fillRect(px, py, entity.w, entity.h);
+
+      ctx.fillStyle = "#111";
+      const eyeY = py + entity.h * 0.3;
+      ctx.fillRect(px + entity.w * 0.25, eyeY, 3, 3);
+      ctx.fillRect(px + entity.w * 0.65, eyeY, 3, 3);
+    }
+
+    function renderStats() {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+      ctx.fillRect(10, canvas.height - 56, 320, 46);
+      ctx.fillStyle = "#fff";
+      ctx.font = "13px Arial";
+      ctx.fillText(`Player x:${player.x.toFixed(0)} y:${player.y.toFixed(0)}`, 18, canvas.height - 30);
+      ctx.fillText(`Animals: ${animals.length}  Drops: ${drops.length}  World: ${WORLD_WIDTH}x${WORLD_HEIGHT}`, 18, canvas.height - 14);
+    }
+
+    function renderPlayerStars() {
+      const hp = Math.max(0, Math.min(player.maxHp, player.hp));
+      const fullStars = Math.floor(hp / 2);
+      const halfStar = hp - fullStars * 2 >= 1;
+      const startX = 12;
+      const y = 96;
+      const gap = 20;
+
+      ctx.font = "18px Arial";
+      for (let i = 0; i < 10; i++) {
+        let color = "#6b6b6b";
+        if (i < fullStars) {
+          color = "#ff4d6d";
+        } else if (i === fullStars && halfStar) {
+          color = "#ff8fa3";
+        }
+        ctx.fillStyle = color;
+        ctx.fillText("❤", startX + i * gap, y);
+      }
+    }
+
+    function renderInventory() {
+      const panelW = 720;
+      const panelH = 480;
+      const px = (canvas.width - panelW) / 2;
+      const py = (canvas.height - panelH) / 2;
+
+      ctx.fillStyle = "rgba(40, 40, 40, 0.95)";
+      ctx.fillRect(px, py, panelW, panelH);
+      ctx.strokeStyle = "#bdbdbd";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(px, py, panelW, panelH);
+
+      const armorX = px + 20;
+      const armorY = py + 20;
+      for (let i = 0; i < 4; i++) {
+        drawSlot(armorX, armorY + i * 56, 46, 46, null, 0, false);
+      }
+
+      ctx.fillStyle = "rgba(20, 20, 20, 0.9)";
+      ctx.fillRect(px + 80, py + 20, 200, 220);
+      ctx.strokeStyle = "#9a9a9a";
+      ctx.strokeRect(px + 80, py + 20, 200, 220);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "22px Arial";
+      ctx.fillText("合成", px + 355, py + 46);
+
+      const craftGridX = px + 355;
+      const craftGridY = py + 62;
+      drawSlot(craftGridX, craftGridY, 52, 52, null, 0, false);
+      drawSlot(craftGridX + 58, craftGridY, 52, 52, null, 0, false);
+      drawSlot(craftGridX, craftGridY + 58, 52, 52, null, 0, false);
+      drawSlot(craftGridX + 58, craftGridY + 58, 52, 52, null, 0, false);
+
+      ctx.fillStyle = "#d5d5d5";
+      ctx.font = "38px Arial";
+      ctx.fillText("→", px + 488, py + 123);
+      drawSlot(px + 540, py + 98, 62, 62, null, 0, false);
+
+      const btnW = 240;
+      const btnH = 34;
+      const btn1 = { x: px + 320, y: py + 176, w: btnW, h: btnH };
+      const btn2 = { x: px + 320, y: py + 218, w: btnW, h: btnH };
+      uiRects.craftWoodPlank = btn1;
+      uiRects.craftTable = btn2;
+      drawCraftButton(btn1, "1原木 → 4木板", inventory[TILE.WOOD] > 0);
+      drawCraftButton(btn2, "4木板 → 1工作台", (inventory.wood_plank || 0) >= 4);
+
+      const itemEntries = Object.entries(inventory).filter(([, count]) => count > 0);
+      const gridStartX = px + 20;
+      const gridStartY = py + 272;
+      const slotSize = 64;
+      const gap = 8;
+      for (let i = 0; i < 27; i++) {
+        const row = Math.floor(i / 9);
+        const col = i % 9;
+        const sx = gridStartX + col * (slotSize + gap);
+        const sy = gridStartY + row * (slotSize + gap);
+        const entry = itemEntries[i] || null;
+        if (entry) {
+          drawSlot(sx, sy, slotSize, slotSize, entry[0], entry[1], false);
+        } else {
+          drawSlot(sx, sy, slotSize, slotSize, null, 0, false);
+        }
+      }
+    }
+
+    function drawCraftButton(rect, label, enabled) {
+      ctx.fillStyle = enabled ? "#5f7f5f" : "#555555";
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.strokeStyle = "#d0d0d0";
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "16px Arial";
+      ctx.fillText(label, rect.x + 10, rect.y + 23);
+    }
+
+    function renderHotbar() {
+      const slotSize = 56;
+      const gap = 8;
+      const barW = slotSize * 9 + gap * 8;
+      const startX = (canvas.width - barW) / 2;
+      const y = canvas.height - slotSize - 14;
+      for (let i = 0; i < 9; i++) {
+        const x = startX + i * (slotSize + gap);
+        const type = hotbarSlots[i];
+        const count = type ? (inventory[type] || 0) : 0;
+        drawSlot(x, y, slotSize, slotSize, type, count, i === selectedHotbarIndex);
+        ctx.fillStyle = "#e5e5e5";
+        ctx.font = "12px Arial";
+        ctx.fillText(String(i + 1), x + 4, y + 14);
+      }
+    }
+
+    function drawSlot(x, y, w, h, itemType, count, selected) {
+      ctx.fillStyle = "rgba(80, 80, 80, 0.95)";
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = selected ? "#ffd54f" : "#d0d0d0";
+      ctx.lineWidth = selected ? 3 : 2;
+      ctx.strokeRect(x, y, w, h);
+
+      if (!itemType || count <= 0) {
+        return;
+      }
+      const color = DROP_COLORS[itemType] || TILE_COLORS[itemType] || "#ffffff";
+      const iconSize = Math.floor(w * 0.45);
+      const ix = x + 8;
+      const iy = y + 8;
+      ctx.fillStyle = color;
+      ctx.fillRect(ix, iy, iconSize, iconSize);
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(ix, iy, iconSize, iconSize);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "12px Arial";
+      ctx.fillText(String(count), x + w - 20, y + h - 8);
+
+      const name = formatItemName(itemType);
+      ctx.fillStyle = "#f0f0f0";
+      ctx.font = "10px Arial";
+      const maxTextWidth = w - 8;
+      let displayName = name;
+      while (ctx.measureText(displayName).width > maxTextWidth && displayName.length > 2) {
+        displayName = displayName.slice(0, -1);
+      }
+      if (displayName !== name) {
+        displayName = `${displayName.slice(0, -1)}…`;
+      }
+      ctx.fillText(displayName, x + 4, y + h - 20);
+    }
+
+    function formatItemName(type) {
+      const names = {
+        grass: "草方块",
+        dirt: "泥土",
+        stone: "原石",
+        coal: "煤矿",
+        iron: "铁矿",
+        gold: "金矿",
+        diamond: "钻石矿",
+        wood: "木头",
+        leaf: "树叶",
+        wood_plank: "木板",
+        crafting_table: "工作台",
+        raw_pork: "生猪肉",
+        wool: "羊毛",
+        mutton: "羊肉",
+        raw_beef: "生牛肉",
+        leather: "皮革"
+      };
+      return names[type] || type;
+    }
+
+    let lastTime = performance.now();
+    let timeSeconds = 0;
+
+    function gameLoop(now) {
+      const rawDt = (now - lastTime) / 1000;
+      lastTime = now;
+      const dt = Math.min(rawDt, 0.033);
+      timeSeconds += dt;
+
+      updatePlayer(dt);
+      if (resetGameIfPlayerDead()) {
+        return;
+      }
+      updateAnimals(dt);
+      updateAnimalSpawning(dt);
+      updateClouds(dt);
+      updateDrops(dt);
+      updateCamera();
+      render();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
