@@ -56,6 +56,22 @@
       background: rgba(76, 175, 80, 0.85);
       border-color: rgba(200, 255, 200, 0.9);
     }
+    .time-switch {
+      position: fixed;
+      right: 12px;
+      top: 10px;
+      z-index: 12;
+    }
+    .time-btn {
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      background: rgba(0, 0, 0, 0.55);
+      color: #ffffff;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      min-width: 118px;
+    }
     .death-overlay {
       position: fixed;
       inset: 0;
@@ -110,6 +126,9 @@
   <div class="mode-switch">
     <button id="survivalModeBtn" class="mode-btn active">生存模式</button>
     <button id="creativeModeBtn" class="mode-btn">创造模式</button>
+  </div>
+  <div class="time-switch">
+    <button id="timeToggleBtn" class="time-btn">切到黑夜</button>
   </div>
   <div id="deathOverlay" class="death-overlay">
     <div class="death-panel">
@@ -172,6 +191,7 @@
       leather: "#8a5a2b",
       fish_meat: "#ffb38a",
       ink_sac: "#2b2b3a",
+      rotten_flesh: "#8f5d4a",
       wood_plank: "#c58a43",
       crafting_table: "#7d5231"
     };
@@ -182,7 +202,8 @@
       cow: { hp: 10, drops: ["raw_beef", "leather"] },
       chicken: { hp: 4, drops: [] },
       fish: { hp: 4, drops: ["fish_meat"] },
-      squid: { hp: 4, drops: ["ink_sac"] }
+      squid: { hp: 4, drops: ["ink_sac"] },
+      zombie: { hp: 20, drops: ["rotten_flesh", "rotten_flesh"] }
     };
 
     const BLOCK_BREAK_DROP_MAP = {
@@ -202,10 +223,15 @@
 
     const LAND_ANIMAL_TYPES = ["pig", "cow", "sheep", "chicken"];
     const SEA_ANIMAL_TYPES = ["fish", "squid"];
+    const ANIMAL_DENSITY = {
+      segmentWidth: 100,
+      minPerSegment: 20
+    };
     const FOOD_HEAL = {
       raw_pork: 2,
       mutton: 2,
-      raw_beef: 2
+      raw_beef: 2,
+      rotten_flesh: 4
     };
     const PLACEABLE_BLOCKS = new Set([
       TILE.GRASS,
@@ -241,11 +267,14 @@
     const ctx = canvas.getContext("2d");
     const survivalModeBtn = document.getElementById("survivalModeBtn");
     const creativeModeBtn = document.getElementById("creativeModeBtn");
+    const timeToggleBtn = document.getElementById("timeToggleBtn");
     const deathOverlay = document.getElementById("deathOverlay");
     const reviveBtn = document.getElementById("reviveBtn");
     const resetGameBtn = document.getElementById("resetGameBtn");
     let gameMode = "survival";
     let isDead = false;
+    const DAY_NIGHT_CYCLE = 25 * 60;
+    const NIGHT_START = 20 * 60;
     const PLAYER_SPAWN = {
       x: 12 * TILE_SIZE,
       y: (LAYER_OFFSET_Y - 2) * TILE_SIZE
@@ -263,6 +292,7 @@
     resizeCanvas();
     survivalModeBtn.addEventListener("click", () => setGameMode("survival"));
     creativeModeBtn.addEventListener("click", () => setGameMode("creative"));
+    timeToggleBtn.addEventListener("click", toggleDayNight);
     reviveBtn.addEventListener("click", revivePlayer);
     resetGameBtn.addEventListener("click", resetWholeGame);
 
@@ -270,6 +300,20 @@
       gameMode = mode;
       survivalModeBtn.classList.toggle("active", mode === "survival");
       creativeModeBtn.classList.toggle("active", mode === "creative");
+    }
+
+    function toggleDayNight() {
+      const cycleBase = Math.floor(timeSeconds / DAY_NIGHT_CYCLE) * DAY_NIGHT_CYCLE;
+      if (isNightTime()) {
+        timeSeconds = cycleBase;
+      } else {
+        timeSeconds = cycleBase + NIGHT_START;
+      }
+      updateTimeToggleLabel();
+    }
+
+    function updateTimeToggleLabel() {
+      timeToggleBtn.textContent = isNightTime() ? "切到白天" : "切到黑夜";
     }
 
     function revivePlayer() {
@@ -615,11 +659,10 @@
         vx: 0,
         vy: 0,
         speed: 230,
-        jumpPower: 480,
+        jumpPower: 375,
         hp: 20,
         maxHp: 20,
         airbornePeakY: PLAYER_SPAWN.y,
-        ignoreLandingDamage: false,
         lastDamagedAt: 0,
         hurtTimer: 0,
         onGround: false,
@@ -634,7 +677,8 @@
         sheep: "#ececec",
         chicken: "#fff7d6",
         fish: "#ff9f43",
-        squid: "#b388ff"
+        squid: "#b388ff",
+        zombie: "#5e9e4a"
       };
       const stats = ANIMAL_STATS[type];
       const aquatic = SEA_ANIMAL_TYPES.includes(type);
@@ -642,47 +686,44 @@
       const spawnY = aquatic
         ? (seaLevels[spawnTileX] + 1) * TILE_SIZE
         : (LAYER_OFFSET_Y - 1) * TILE_SIZE;
+      const isZombie = type === "zombie";
 
       return {
         kind: type,
         x,
         y: spawnY,
-        w: aquatic ? 24 : 26,
-        h: aquatic ? 16 : 22,
+        w: aquatic ? 24 : isZombie ? 24 : 26,
+        h: aquatic ? 16 : isZombie ? 32 : 22,
         vx: 0,
         vy: 0,
-        speed: 70 + Math.random() * 30,
+        speed: aquatic ? 70 + Math.random() * 30 : isZombie ? 92 + Math.random() * 16 : 70 + Math.random() * 30,
         direction: Math.random() > 0.5 ? 1 : -1,
         aiTimer: 0.6 + Math.random() * 1.4,
         jumpCooldown: 0.4 + Math.random() * 0.8,
-        jumpPower: 360 + Math.random() * 70,
+        jumpPower: isZombie ? 390 : 360 + Math.random() * 70,
         onGround: false,
         color: colorMap[type],
         hp: stats.hp,
         maxHp: stats.hp,
         hurtTimer: 0,
+        attackCooldown: 0,
         aquatic,
         swimPhase: Math.random() * Math.PI * 2
       };
     }
 
     function spawnAnimals() {
-      const landAnimals = [];
-      for (const type of LAND_ANIMAL_TYPES) {
-        const landX = findRandomLandX();
-        if (landX !== -1) {
-          landAnimals.push(createAnimal(type, landX * TILE_SIZE));
+      const list = [];
+      const segmentCount = Math.ceil(WORLD_WIDTH / ANIMAL_DENSITY.segmentWidth);
+      for (let segment = 0; segment < segmentCount; segment++) {
+        for (let i = 0; i < ANIMAL_DENSITY.minPerSegment; i++) {
+          const animal = createAnimalInSegment(segment);
+          if (animal) {
+            list.push(animal);
+          }
         }
       }
-      const seaAnimals = [];
-      for (let i = 0; i < 8; i++) {
-        const seaX = findRandomSeaX();
-        if (seaX !== -1) {
-          const type = SEA_ANIMAL_TYPES[i % SEA_ANIMAL_TYPES.length];
-          seaAnimals.push(createAnimal(type, seaX * TILE_SIZE));
-        }
-      }
-      return [...landAnimals, ...seaAnimals];
+      return list;
     }
 
     function findRandomLandX() {
@@ -703,6 +744,62 @@
         }
       }
       return -1;
+    }
+
+    function findRandomLandXInRange(minX, maxX) {
+      for (let i = 0; i < 80; i++) {
+        const x = minX + Math.floor(Math.random() * (maxX - minX + 1));
+        if (biomeTypes[x] !== "sea") {
+          return x;
+        }
+      }
+      return -1;
+    }
+
+    function findRandomSeaXInRange(minX, maxX) {
+      for (let i = 0; i < 80; i++) {
+        const x = minX + Math.floor(Math.random() * (maxX - minX + 1));
+        if (biomeTypes[x] === "sea") {
+          return x;
+        }
+      }
+      return -1;
+    }
+
+    function createAnimalInSegment(segmentIndex) {
+      const segStart = segmentIndex * ANIMAL_DENSITY.segmentWidth;
+      const segEnd = Math.min(WORLD_WIDTH - 1, segStart + ANIMAL_DENSITY.segmentWidth - 1);
+      const centerX = Math.floor((segStart + segEnd) / 2);
+      const preferSea = biomeTypes[centerX] === "sea";
+      if (preferSea) {
+        const seaX = findRandomSeaXInRange(segStart, segEnd);
+        if (seaX !== -1) {
+          const seaType = SEA_ANIMAL_TYPES[Math.floor(Math.random() * SEA_ANIMAL_TYPES.length)];
+          return createAnimal(seaType, seaX * TILE_SIZE);
+        }
+      }
+      const landX = findRandomLandXInRange(segStart, segEnd);
+      if (landX !== -1) {
+        const landType = LAND_ANIMAL_TYPES[Math.floor(Math.random() * LAND_ANIMAL_TYPES.length)];
+        return createAnimal(landType, landX * TILE_SIZE);
+      }
+      const fallbackSeaX = findRandomSeaXInRange(segStart, segEnd);
+      if (fallbackSeaX !== -1) {
+        const seaType = SEA_ANIMAL_TYPES[Math.floor(Math.random() * SEA_ANIMAL_TYPES.length)];
+        return createAnimal(seaType, fallbackSeaX * TILE_SIZE);
+      }
+      return null;
+    }
+
+    function getSegmentAnimalCounts() {
+      const segmentCount = Math.ceil(WORLD_WIDTH / ANIMAL_DENSITY.segmentWidth);
+      const counts = Array.from({ length: segmentCount }, () => 0);
+      for (const animal of animals) {
+        const centerX = clamp(Math.floor((animal.x + animal.w / 2) / TILE_SIZE), 0, WORLD_WIDTH - 1);
+        const segment = Math.floor(centerX / ANIMAL_DENSITY.segmentWidth);
+        counts[segment] += 1;
+      }
+      return counts;
     }
 
     function createClouds() {
@@ -732,8 +829,13 @@
     };
     const SPAWN = {
       timer: 0,
-      interval: 4,
-      maxAnimals: 12
+      interval: 1,
+      maxAnimals: Math.ceil(WORLD_WIDTH / ANIMAL_DENSITY.segmentWidth) * ANIMAL_DENSITY.minPerSegment + 120
+    };
+    const ZOMBIE_SPAWN = {
+      timer: 0,
+      interval: 2,
+      maxZombies: 90
     };
     let waterFlowAccumulator = 0;
     let lavaFlowAccumulator = 0;
@@ -771,7 +873,6 @@
 
     function updatePlayer(dt) {
       const wasOnGround = player.onGround;
-      let didJump = false;
       player.hurtTimer = Math.max(0, player.hurtTimer - dt);
       const inWater = isEntityInWater(player);
       const inLava = isEntityInLava(player);
@@ -786,7 +887,6 @@
       if (keys.has("Space") && player.onGround) {
         player.vy = -player.jumpPower;
         player.onGround = false;
-        didJump = true;
       }
       if (keys.has("Space") && inWater) {
         player.vy = Math.min(player.vy, -220);
@@ -797,7 +897,7 @@
         teleportPlayerToSpawn();
         return;
       }
-      updatePlayerFallDamage(wasOnGround, didJump);
+      updatePlayerFallDamage(wasOnGround);
       applyPlayerStuckDamage(dt);
       applyPlayerLavaDamage(dt, inLava);
       applyPlayerRegen(dt);
@@ -821,10 +921,9 @@
       player.airbornePeakY = player.y;
     }
 
-    function updatePlayerFallDamage(wasOnGround, didJump) {
+    function updatePlayerFallDamage(wasOnGround) {
       if (wasOnGround && !player.onGround) {
         player.airbornePeakY = player.y;
-        player.ignoreLandingDamage = didJump;
       }
 
       if (!player.onGround && player.y < player.airbornePeakY) {
@@ -832,15 +931,11 @@
       }
 
       if (!wasOnGround && player.onGround) {
-        if (player.ignoreLandingDamage) {
-          player.ignoreLandingDamage = false;
-        } else {
-          const fallPixels = player.y - player.airbornePeakY;
-          const fallBlocks = Math.floor(fallPixels / TILE_SIZE);
-          const damage = Math.max(0, fallBlocks - 2);
-          if (damage > 0) {
-              applyDamage(player, damage);
-          }
+        const fallPixels = player.y - player.airbornePeakY;
+        const fallBlocks = Math.floor(fallPixels / TILE_SIZE);
+        const damage = Math.max(0, fallBlocks - 2);
+        if (damage > 0) {
+          applyDamage(player, damage);
         }
       }
 
@@ -904,36 +999,69 @@
       for (let i = animals.length - 1; i >= 0; i--) {
         const animal = animals[i];
         animal.hurtTimer = Math.max(0, animal.hurtTimer - dt);
-        if (animal.aquatic) {
+        if (animal.kind === "zombie") {
+          updateZombie(animal, dt);
+        } else if (animal.aquatic) {
           updateAquaticAnimal(animal, dt);
-          continue;
-        }
-        animal.aiTimer -= dt;
-        animal.jumpCooldown -= dt;
-        if (animal.aiTimer <= 0) {
-          animal.direction = Math.random() < 0.5 ? -1 : 1;
-          animal.aiTimer = 0.8 + Math.random() * 1.8;
+        } else {
+          animal.aiTimer -= dt;
+          animal.jumpCooldown -= dt;
+          if (animal.aiTimer <= 0) {
+            animal.direction = Math.random() < 0.5 ? -1 : 1;
+            animal.aiTimer = 0.8 + Math.random() * 1.8;
+          }
+
+          if (animal.onGround && animal.jumpCooldown <= 0 && shouldAnimalJump(animal)) {
+            animal.vy = -animal.jumpPower;
+            animal.onGround = false;
+            animal.jumpCooldown = 0.6 + Math.random() * 0.8;
+          }
+
+          animal.vx = animal.direction * animal.speed;
+          const collided = applyPhysicsAndCollisions(animal, dt);
+          if (collided.x) {
+            animal.direction *= -1;
+          }
         }
 
-        if (animal.onGround && animal.jumpCooldown <= 0 && shouldAnimalJump(animal)) {
-          animal.vy = -animal.jumpPower;
-          animal.onGround = false;
-          animal.jumpCooldown = 0.6 + Math.random() * 0.8;
-        }
-
-        animal.vx = animal.direction * animal.speed;
-        const collided = applyPhysicsAndCollisions(animal, dt);
-        if (collided.x) {
-          animal.direction *= -1;
+        if (isEntityInLava(animal)) {
+          applyDamage(animal, 4 * dt);
         }
 
         if (isEntityInsideSolid(animal)) {
           applyDamage(animal, 5 * dt);
-          if (animal.hp <= 0) {
-            spawnAnimalDrops(animal);
-            animals.splice(i, 1);
-          }
         }
+        if (animal.hp <= 0) {
+          spawnAnimalDrops(animal);
+          animals.splice(i, 1);
+        }
+      }
+    }
+
+    function updateZombie(animal, dt) {
+      if (!isNightTime()) {
+        applyDamage(animal, 2 * dt);
+      }
+      const playerCenterX = player.x + player.w / 2;
+      const zombieCenterX = animal.x + animal.w / 2;
+      const dx = playerCenterX - zombieCenterX;
+      animal.attackCooldown = Math.max(0, animal.attackCooldown - dt);
+      animal.direction = dx >= 0 ? 1 : -1;
+      animal.vx = animal.direction * animal.speed;
+      if (animal.onGround && shouldAnimalJump(animal)) {
+        animal.vy = -animal.jumpPower;
+        animal.onGround = false;
+      }
+      const collided = applyPhysicsAndCollisions(animal, dt);
+      if (collided.x) {
+        animal.direction *= -1;
+      }
+
+      const overlapX = player.x < animal.x + animal.w && player.x + player.w > animal.x;
+      const overlapY = player.y < animal.y + animal.h && player.y + player.h > animal.y;
+      if (overlapX && overlapY && animal.attackCooldown <= 0) {
+        applyDamage(player, 3);
+        animal.attackCooldown = 1;
       }
     }
 
@@ -1174,20 +1302,67 @@
       if (animals.length >= SPAWN.maxAnimals) {
         return;
       }
-
-      if (Math.random() < 0.3) {
-        const seaX = findRandomSeaX();
-        if (seaX !== -1) {
-          const seaType = SEA_ANIMAL_TYPES[Math.floor(Math.random() * SEA_ANIMAL_TYPES.length)];
-          animals.push(createAnimal(seaType, seaX * TILE_SIZE));
-          return;
+      const counts = getSegmentAnimalCounts();
+      let budget = 24;
+      for (let segment = 0; segment < counts.length; segment++) {
+        while (counts[segment] < ANIMAL_DENSITY.minPerSegment && budget > 0 && animals.length < SPAWN.maxAnimals) {
+          const animal = createAnimalInSegment(segment);
+          if (!animal) {
+            break;
+          }
+          animals.push(animal);
+          counts[segment] += 1;
+          budget -= 1;
         }
       }
-      const landType = LAND_ANIMAL_TYPES[Math.floor(Math.random() * LAND_ANIMAL_TYPES.length)];
-      const landX = findRandomLandX();
-      if (landX !== -1) {
-        animals.push(createAnimal(landType, landX * TILE_SIZE));
+    }
+
+    function updateZombieSpawning(dt) {
+      if (!isNightTime()) {
+        ZOMBIE_SPAWN.timer = 0;
+        return;
       }
+      ZOMBIE_SPAWN.timer -= dt;
+      if (ZOMBIE_SPAWN.timer > 0) {
+        return;
+      }
+      ZOMBIE_SPAWN.timer = ZOMBIE_SPAWN.interval;
+      if (countZombies() >= ZOMBIE_SPAWN.maxZombies) {
+        return;
+      }
+      spawnZombieNearPlayer();
+    }
+
+    function countZombies() {
+      let count = 0;
+      for (const animal of animals) {
+        if (animal.kind === "zombie") {
+          count += 1;
+        }
+      }
+      return count;
+    }
+
+    function spawnZombieNearPlayer() {
+      const playerTileX = clamp(Math.floor((player.x + player.w / 2) / TILE_SIZE), 0, WORLD_WIDTH - 1);
+      for (let i = 0; i < 80; i++) {
+        const sign = Math.random() < 0.5 ? -1 : 1;
+        const offset = 12 + Math.floor(Math.random() * 36);
+        const x = clamp(playerTileX + sign * offset, 0, WORLD_WIDTH - 1);
+        if (biomeTypes[x] === "sea") {
+          continue;
+        }
+        const surfaceY = surfaceHeights[x];
+        const spawnTileY = surfaceY - 1;
+        if (spawnTileY < 1 || getTile(x, spawnTileY) !== TILE.AIR) {
+          continue;
+        }
+        const zombie = createAnimal("zombie", x * TILE_SIZE);
+        zombie.y = surfaceY * TILE_SIZE - zombie.h;
+        animals.push(zombie);
+        return true;
+      }
+      return false;
     }
 
     function handleMouseAction(event) {
@@ -1583,10 +1758,8 @@
     }
 
     function isNightTime() {
-      const cycle = 25 * 60;
-      const nightStart = 20 * 60;
-      const t = timeSeconds % cycle;
-      return t >= nightStart;
+      const t = timeSeconds % DAY_NIGHT_CYCLE;
+      return t >= NIGHT_START;
     }
 
     function renderClouds() {
@@ -1817,7 +1990,8 @@
         raw_beef: "生牛肉",
         leather: "皮革",
         fish_meat: "鱼肉",
-        ink_sac: "墨囊"
+        ink_sac: "墨囊",
+        rotten_flesh: "腐肉"
       };
       return names[type] || type;
     }
@@ -1830,12 +2004,14 @@
       lastTime = now;
       const dt = Math.min(rawDt, 0.033);
       timeSeconds += dt;
+      updateTimeToggleLabel();
 
       if (!isDead) {
         updatePlayer(dt);
         resetGameIfPlayerDead();
         updateAnimals(dt);
         updateAnimalSpawning(dt);
+        updateZombieSpawning(dt);
         updateClouds(dt);
         updateDrops(dt);
         updateWaterFlow(dt);
