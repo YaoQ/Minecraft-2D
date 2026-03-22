@@ -34,6 +34,69 @@
       pointer-events: none;
       z-index: 10;
     }
+    .mode-switch {
+      position: fixed;
+      left: 12px;
+      top: 104px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 11;
+    }
+    .mode-btn {
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      background: rgba(0, 0, 0, 0.55);
+      color: #ffffff;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .mode-btn.active {
+      background: rgba(76, 175, 80, 0.85);
+      border-color: rgba(200, 255, 200, 0.9);
+    }
+    .death-overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 30;
+    }
+    .death-panel {
+      background: rgba(20, 20, 20, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 10px;
+      padding: 24px 28px;
+      text-align: center;
+      min-width: 220px;
+    }
+    .death-title {
+      font-size: 22px;
+      margin-bottom: 14px;
+      color: #ff8080;
+    }
+    .revive-btn {
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      background: rgba(46, 125, 50, 0.9);
+      color: #ffffff;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .reset-btn {
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      background: rgba(120, 120, 120, 0.9);
+      color: #ffffff;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 14px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -41,14 +104,25 @@
     A / D：左右移动<br />
     Space：跳跃<br />
     鼠标左键：攻击生物 / 单点破坏方块<br />
-    鼠标右键：单点放置原石<br />
+    鼠标右键：放置手持方块（手持非方块则无法放置）<br />
     E：打开/关闭背包，1-9：选择快捷栏
+  </div>
+  <div class="mode-switch">
+    <button id="survivalModeBtn" class="mode-btn active">生存模式</button>
+    <button id="creativeModeBtn" class="mode-btn">创造模式</button>
+  </div>
+  <div id="deathOverlay" class="death-overlay">
+    <div class="death-panel">
+      <div class="death-title">你已死亡</div>
+      <button id="reviveBtn" class="revive-btn">是否复活</button>
+      <button id="resetGameBtn" class="reset-btn">重置游戏</button>
+    </div>
   </div>
   <canvas id="game"></canvas>
   <script>
     const TILE_SIZE = 32;
-    const WORLD_WIDTH = 900;
-    const WORLD_HEIGHT = 420;
+    const WORLD_WIDTH = 3000;
+    const WORLD_HEIGHT = 180;
     const LAYER_OFFSET_Y = 10;
 
     const TILE = {
@@ -63,7 +137,12 @@
       BEDROCK: "bedrock",
       VOID: "void",
       WOOD: "wood",
-      LEAF: "leaf"
+      LEAF: "leaf",
+      WOOD_PLANK: "wood_plank",
+      CRAFTING_TABLE: "crafting_table",
+      SAND: "sand",
+      WATER: "water",
+      LAVA: "lava"
     };
 
     const TILE_COLORS = {
@@ -76,7 +155,12 @@
       [TILE.DIAMOND]: "#00f5ff",
       [TILE.BEDROCK]: "#4b4b4b",
       [TILE.WOOD]: "#9c6b30",
-      [TILE.LEAF]: "#3cae4a"
+      [TILE.LEAF]: "#3cae4a",
+      [TILE.WOOD_PLANK]: "#c58a43",
+      [TILE.CRAFTING_TABLE]: "#7d5231",
+      [TILE.SAND]: "#e8d69a",
+      [TILE.WATER]: "#4aa3ff",
+      [TILE.LAVA]: "#ff5a1f"
     };
 
     const DROP_COLORS = {
@@ -86,6 +170,8 @@
       mutton: "#c67b6e",
       raw_beef: "#b45443",
       leather: "#8a5a2b",
+      fish_meat: "#ffb38a",
+      ink_sac: "#2b2b3a",
       wood_plank: "#c58a43",
       crafting_table: "#7d5231"
     };
@@ -93,7 +179,10 @@
     const ANIMAL_STATS = {
       pig: { hp: 10, drops: ["raw_pork"] },
       sheep: { hp: 8, drops: ["wool", "mutton"] },
-      cow: { hp: 10, drops: ["raw_beef", "leather"] }
+      cow: { hp: 10, drops: ["raw_beef", "leather"] },
+      chicken: { hp: 4, drops: [] },
+      fish: { hp: 4, drops: ["fish_meat"] },
+      squid: { hp: 4, drops: ["ink_sac"] }
     };
 
     const BLOCK_BREAK_DROP_MAP = {
@@ -105,15 +194,33 @@
       [TILE.GOLD]: TILE.GOLD,
       [TILE.DIAMOND]: TILE.DIAMOND,
       [TILE.WOOD]: TILE.WOOD,
-      [TILE.LEAF]: TILE.LEAF
+      [TILE.LEAF]: TILE.LEAF,
+      [TILE.WOOD_PLANK]: TILE.WOOD_PLANK,
+      [TILE.CRAFTING_TABLE]: TILE.CRAFTING_TABLE,
+      [TILE.SAND]: TILE.SAND
     };
 
-    const ANIMAL_TYPES = ["pig", "cow", "sheep"];
+    const LAND_ANIMAL_TYPES = ["pig", "cow", "sheep", "chicken"];
+    const SEA_ANIMAL_TYPES = ["fish", "squid"];
     const FOOD_HEAL = {
       raw_pork: 2,
       mutton: 2,
       raw_beef: 2
     };
+    const PLACEABLE_BLOCKS = new Set([
+      TILE.GRASS,
+      TILE.DIRT,
+      TILE.STONE,
+      TILE.COAL,
+      TILE.IRON,
+      TILE.GOLD,
+      TILE.DIAMOND,
+      TILE.WOOD,
+      TILE.LEAF,
+      TILE.WOOD_PLANK,
+      TILE.CRAFTING_TABLE,
+      TILE.SAND
+    ]);
 
     const SOLID_TILES = new Set([
       TILE.GRASS,
@@ -124,11 +231,25 @@
       TILE.GOLD,
       TILE.DIAMOND,
       TILE.BEDROCK,
-      TILE.LEAF
+      TILE.LEAF,
+      TILE.WOOD_PLANK,
+      TILE.CRAFTING_TABLE,
+      TILE.SAND
     ]);
 
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
+    const survivalModeBtn = document.getElementById("survivalModeBtn");
+    const creativeModeBtn = document.getElementById("creativeModeBtn");
+    const deathOverlay = document.getElementById("deathOverlay");
+    const reviveBtn = document.getElementById("reviveBtn");
+    const resetGameBtn = document.getElementById("resetGameBtn");
+    let gameMode = "survival";
+    let isDead = false;
+    const PLAYER_SPAWN = {
+      x: 12 * TILE_SIZE,
+      y: (LAYER_OFFSET_Y - 2) * TILE_SIZE
+    };
 
     const worldPixelWidth = WORLD_WIDTH * TILE_SIZE;
     const worldPixelHeight = WORLD_HEIGHT * TILE_SIZE;
@@ -140,40 +261,122 @@
 
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
+    survivalModeBtn.addEventListener("click", () => setGameMode("survival"));
+    creativeModeBtn.addEventListener("click", () => setGameMode("creative"));
+    reviveBtn.addEventListener("click", revivePlayer);
+    resetGameBtn.addEventListener("click", resetWholeGame);
+
+    function setGameMode(mode) {
+      gameMode = mode;
+      survivalModeBtn.classList.toggle("active", mode === "survival");
+      creativeModeBtn.classList.toggle("active", mode === "creative");
+    }
+
+    function revivePlayer() {
+      isDead = false;
+      deathOverlay.style.display = "none";
+      player.hp = player.maxHp;
+      player.lastDamagedAt = timeSeconds;
+      teleportPlayerToSpawn();
+    }
+
+    function resetWholeGame() {
+      window.location.reload();
+    }
+
+    let surfaceHeights = [];
+    let biomeTypes = [];
+    let seaLevels = [];
 
     function createWorld() {
       const world = Array.from({ length: WORLD_HEIGHT }, () =>
         Array.from({ length: WORLD_WIDTH }, () => TILE.AIR)
       );
+      const bedrockY = Math.min(WORLD_HEIGHT - 2, LAYER_OFFSET_Y + 100);
+      const terrain = Array.from({ length: WORLD_WIDTH }, (_, x) => getColumnTerrain(x));
+      surfaceHeights = terrain.map((t) => t.surfaceY);
+      biomeTypes = terrain.map((t) => t.biome);
+      seaLevels = terrain.map((t) => t.seaLevel);
 
-      for (let y = 0; y < WORLD_HEIGHT; y++) {
-        for (let x = 0; x < WORLD_WIDTH; x++) {
-          const depth = y - LAYER_OFFSET_Y;
-          let block = TILE.AIR;
-
-          if (depth < 0) {
-            block = TILE.AIR;
-          } else if (depth === 0) {
-            block = TILE.AIR;
-          } else if (depth === 1) {
-            block = TILE.GRASS;
-          } else if (depth >= 2 && depth <= 3) {
-            block = TILE.DIRT;
-          } else if (depth >= 4 && depth <= 99) {
-            block = TILE.STONE;
-          } else if (depth === 100) {
-            block = TILE.BEDROCK;
-          } else {
-            block = TILE.VOID;
+      for (let x = 0; x < WORLD_WIDTH; x++) {
+        const profile = terrain[x];
+        const surfaceY = profile.surfaceY;
+        const seaLevel = profile.seaLevel;
+        const biome = profile.biome;
+        for (let y = 0; y < WORLD_HEIGHT; y++) {
+          if (biome === "sea") {
+            if (y < seaLevel) {
+              world[y][x] = TILE.AIR;
+            } else if (y < surfaceY) {
+              world[y][x] = TILE.WATER;
+            } else if (y <= surfaceY + 2) {
+              world[y][x] = TILE.SAND;
+            } else if (y < bedrockY) {
+              world[y][x] = TILE.STONE;
+            } else if (y === bedrockY) {
+              world[y][x] = TILE.BEDROCK;
+            } else {
+              world[y][x] = TILE.VOID;
+            }
+            continue;
           }
 
-          world[y][x] = block;
+          if (y < surfaceY) {
+            world[y][x] = TILE.AIR;
+          } else if (biome === "beach" && y <= surfaceY + 2) {
+            world[y][x] = TILE.SAND;
+          } else if (y === surfaceY) {
+            world[y][x] = TILE.GRASS;
+          } else if (y <= surfaceY + 2) {
+            world[y][x] = TILE.DIRT;
+          } else if (y < bedrockY) {
+            world[y][x] = TILE.STONE;
+          } else if (y === bedrockY) {
+            world[y][x] = TILE.BEDROCK;
+          } else {
+            world[y][x] = TILE.VOID;
+          }
         }
       }
 
       generateOres(world);
-      generateTrees(world, 24);
+      generateCaves(world);
+      generateUndergroundWaterPools(world);
+      generateLava(world);
+      generateTrees(world, 36);
       return world;
+    }
+
+    function getColumnTerrain(x) {
+      const segmentIndex = Math.floor(x / 200);
+      const biome = getSegmentBiome(segmentIndex);
+      const localX = x % 200;
+      const t = localX / 200;
+      const seaLevel = 22;
+      let base = 14;
+      let amp = 3;
+      if (biome === "high_mountain_forest") {
+        base = 10;
+        amp = 11;
+      } else if (biome === "forest") {
+        base = 14;
+        amp = 4;
+      } else if (biome === "beach") {
+        base = 14;
+        amp = 4;
+      } else if (biome === "sea") {
+        base = 30;
+        amp = 2;
+      }
+      const wave = Math.sin(t * Math.PI * 2) * amp;
+      const noise = (Math.random() - 0.5) * (biome === "sea" ? 1.2 : 2.4);
+      const surfaceY = clamp(Math.round(base + wave + noise), 7, 42);
+      return { biome, surfaceY, seaLevel };
+    }
+
+    function getSegmentBiome(segmentIndex) {
+      const cycle = ["forest", "high_mountain_forest", "beach", "sea", "forest"];
+      return cycle[segmentIndex % cycle.length];
     }
 
     function generateOres(world) {
@@ -196,6 +399,101 @@
       }
     }
 
+    function generateCaves(world) {
+      const caveCount = Math.floor(WORLD_WIDTH / 18);
+      for (let i = 0; i < caveCount; i++) {
+        let x = Math.floor(Math.random() * WORLD_WIDTH);
+        let y = surfaceHeights[x] + 3 + Math.floor(Math.random() * 70);
+        const steps = 36 + Math.floor(Math.random() * 80);
+        const radius = 1 + Math.floor(Math.random() * 2);
+
+        for (let step = 0; step < steps; step++) {
+          carveCircle(world, x, y, radius);
+          x += Math.floor(Math.random() * 3) - 1;
+          y += Math.floor(Math.random() * 3) - 1;
+          x = clamp(x, 2, WORLD_WIDTH - 3);
+          const minY = surfaceHeights[x] + 3;
+          y = clamp(y, minY, Math.min(WORLD_HEIGHT - 4, LAYER_OFFSET_Y + 95));
+        }
+      }
+    }
+
+    function generateUndergroundWaterPools(world) {
+      const candidateCount = Math.floor(WORLD_WIDTH / 60);
+      for (let i = 0; i < candidateCount; i++) {
+        if (Math.random() >= 0.05) {
+          continue;
+        }
+        const x = Math.floor(Math.random() * WORLD_WIDTH);
+        const yMin = surfaceHeights[x] + 8;
+        const yMax = Math.min(WORLD_HEIGHT - 8, LAYER_OFFSET_Y + 90);
+        if (yMin >= yMax) {
+          continue;
+        }
+        const y = yMin + Math.floor(Math.random() * (yMax - yMin));
+        const radius = 4 + Math.floor(Math.random() * 5);
+        carveAndFillWaterPool(world, x, y, radius);
+      }
+    }
+
+    function carveAndFillWaterPool(world, cx, cy, radius) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius - 2; dx <= radius + 2; dx++) {
+          const tx = cx + dx;
+          const ty = cy + dy;
+          if (!inWorld(tx, ty)) {
+            continue;
+          }
+          const nx = dx / (radius + 2);
+          const ny = dy / radius;
+          if (nx * nx + ny * ny > 1) {
+            continue;
+          }
+          const tile = world[ty][tx];
+          if (tile === TILE.BEDROCK || tile === TILE.VOID) {
+            continue;
+          }
+          world[ty][tx] = TILE.WATER;
+        }
+      }
+    }
+
+    function generateLava(world) {
+      for (let x = 0; x < WORLD_WIDTH; x++) {
+        const minLavaY = surfaceHeights[x] + 10;
+        for (let y = minLavaY; y < WORLD_HEIGHT; y++) {
+          if (y >= WORLD_HEIGHT - 2) {
+            continue;
+          }
+          if (world[y][x] !== TILE.STONE) {
+            continue;
+          }
+          if (Math.random() < 0.1) {
+            world[y][x] = TILE.LAVA;
+          }
+        }
+      }
+    }
+
+    function carveCircle(world, cx, cy, radius) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (dx * dx + dy * dy > radius * radius) {
+            continue;
+          }
+          const tx = cx + dx;
+          const ty = cy + dy;
+          if (!inWorld(tx, ty)) {
+            continue;
+          }
+          const tile = world[ty][tx];
+          if (tile === TILE.STONE || tile === TILE.DIRT || tile === TILE.COAL || tile === TILE.IRON || tile === TILE.GOLD || tile === TILE.DIAMOND) {
+            world[ty][tx] = TILE.AIR;
+          }
+        }
+      }
+    }
+
     function generateTrees(world, count) {
       for (let i = 0; i < count; i++) {
         generateSingleTree(world);
@@ -203,8 +501,11 @@
     }
 
     function generateSingleTree(world) {
-      const grassY = LAYER_OFFSET_Y + 1;
       const treeX = Math.floor(Math.random() * (WORLD_WIDTH - 6)) + 3;
+      const grassY = findGrassSurfaceY(world, treeX);
+      if (grassY === -1) {
+        return;
+      }
       const trunkHeight = 4 + Math.floor(Math.random() * 3);
       const trunkBaseY = grassY - 1;
 
@@ -226,6 +527,15 @@
           }
         }
       }
+    }
+
+    function findGrassSurfaceY(world, x) {
+      for (let y = 0; y < WORLD_HEIGHT; y++) {
+        if (world[y][x] === TILE.GRASS) {
+          return y;
+        }
+      }
+      return -1;
     }
 
     function inWorld(tx, ty) {
@@ -265,11 +575,41 @@
       return false;
     }
 
+    function isEntityInWater(entity) {
+      const left = Math.floor(entity.x / TILE_SIZE);
+      const right = Math.floor((entity.x + entity.w - 1) / TILE_SIZE);
+      const top = Math.floor(entity.y / TILE_SIZE);
+      const bottom = Math.floor((entity.y + entity.h - 1) / TILE_SIZE);
+      for (let ty = top; ty <= bottom; ty++) {
+        for (let tx = left; tx <= right; tx++) {
+          if (getTile(tx, ty) === TILE.WATER) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function isEntityInLava(entity) {
+      const left = Math.floor(entity.x / TILE_SIZE);
+      const right = Math.floor((entity.x + entity.w - 1) / TILE_SIZE);
+      const top = Math.floor(entity.y / TILE_SIZE);
+      const bottom = Math.floor((entity.y + entity.h - 1) / TILE_SIZE);
+      for (let ty = top; ty <= bottom; ty++) {
+        for (let tx = left; tx <= right; tx++) {
+          if (getTile(tx, ty) === TILE.LAVA) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
     function createPlayer() {
       return {
         kind: "player",
-        x: 12 * TILE_SIZE,
-        y: (LAYER_OFFSET_Y - 2) * TILE_SIZE,
+        x: PLAYER_SPAWN.x,
+        y: PLAYER_SPAWN.y,
         w: 24,
         h: 44,
         vx: 0,
@@ -278,8 +618,10 @@
         jumpPower: 480,
         hp: 20,
         maxHp: 20,
-        airbornePeakY: (LAYER_OFFSET_Y - 2) * TILE_SIZE,
+        airbornePeakY: PLAYER_SPAWN.y,
         ignoreLandingDamage: false,
+        lastDamagedAt: 0,
+        hurtTimer: 0,
         onGround: false,
         color: "#2d7ff9"
       };
@@ -289,16 +631,24 @@
       const colorMap = {
         pig: "#f7a8b8",
         cow: "#5d4037",
-        sheep: "#ececec"
+        sheep: "#ececec",
+        chicken: "#fff7d6",
+        fish: "#ff9f43",
+        squid: "#b388ff"
       };
       const stats = ANIMAL_STATS[type];
+      const aquatic = SEA_ANIMAL_TYPES.includes(type);
+      const spawnTileX = clamp(Math.floor(x / TILE_SIZE), 0, WORLD_WIDTH - 1);
+      const spawnY = aquatic
+        ? (seaLevels[spawnTileX] + 1) * TILE_SIZE
+        : (LAYER_OFFSET_Y - 1) * TILE_SIZE;
 
       return {
         kind: type,
         x,
-        y: (LAYER_OFFSET_Y - 1) * TILE_SIZE,
-        w: 26,
-        h: 22,
+        y: spawnY,
+        w: aquatic ? 24 : 26,
+        h: aquatic ? 16 : 22,
         vx: 0,
         vy: 0,
         speed: 70 + Math.random() * 30,
@@ -309,15 +659,50 @@
         onGround: false,
         color: colorMap[type],
         hp: stats.hp,
-        maxHp: stats.hp
+        maxHp: stats.hp,
+        hurtTimer: 0,
+        aquatic,
+        swimPhase: Math.random() * Math.PI * 2
       };
     }
 
     function spawnAnimals() {
-      return ANIMAL_TYPES.map((type, i) => {
-        const x = (20 + i * 10) * TILE_SIZE + Math.random() * 120;
-        return createAnimal(type, x);
-      });
+      const landAnimals = [];
+      for (const type of LAND_ANIMAL_TYPES) {
+        const landX = findRandomLandX();
+        if (landX !== -1) {
+          landAnimals.push(createAnimal(type, landX * TILE_SIZE));
+        }
+      }
+      const seaAnimals = [];
+      for (let i = 0; i < 8; i++) {
+        const seaX = findRandomSeaX();
+        if (seaX !== -1) {
+          const type = SEA_ANIMAL_TYPES[i % SEA_ANIMAL_TYPES.length];
+          seaAnimals.push(createAnimal(type, seaX * TILE_SIZE));
+        }
+      }
+      return [...landAnimals, ...seaAnimals];
+    }
+
+    function findRandomLandX() {
+      for (let i = 0; i < 60; i++) {
+        const x = Math.floor(Math.random() * WORLD_WIDTH);
+        if (biomeTypes[x] !== "sea") {
+          return x;
+        }
+      }
+      return -1;
+    }
+
+    function findRandomSeaX() {
+      for (let i = 0; i < 40; i++) {
+        const x = Math.floor(Math.random() * WORLD_WIDTH);
+        if (biomeTypes[x] === "sea") {
+          return x;
+        }
+      }
+      return -1;
     }
 
     function createClouds() {
@@ -350,6 +735,9 @@
       interval: 4,
       maxAnimals: 12
     };
+    let waterFlowAccumulator = 0;
+    let lavaFlowAccumulator = 0;
+    let sandFallAccumulator = 0;
 
     const PHYSICS = {
       gravity: 1100,
@@ -384,6 +772,9 @@
     function updatePlayer(dt) {
       const wasOnGround = player.onGround;
       let didJump = false;
+      player.hurtTimer = Math.max(0, player.hurtTimer - dt);
+      const inWater = isEntityInWater(player);
+      const inLava = isEntityInLava(player);
       const moveLeft = keys.has("KeyA");
       const moveRight = keys.has("KeyD");
       let intent = 0;
@@ -397,10 +788,37 @@
         player.onGround = false;
         didJump = true;
       }
+      if (keys.has("Space") && inWater) {
+        player.vy = Math.min(player.vy, -220);
+      }
 
       applyPhysicsAndCollisions(player, dt);
+      if (isPlayerInVoid()) {
+        teleportPlayerToSpawn();
+        return;
+      }
       updatePlayerFallDamage(wasOnGround, didJump);
       applyPlayerStuckDamage(dt);
+      applyPlayerLavaDamage(dt, inLava);
+      applyPlayerRegen(dt);
+    }
+
+    function isPlayerInVoid() {
+      const centerX = Math.floor((player.x + player.w / 2) / TILE_SIZE);
+      const centerY = Math.floor((player.y + player.h / 2) / TILE_SIZE);
+      if (player.y > worldPixelHeight + player.h * 2) {
+        return true;
+      }
+      return getTile(centerX, centerY) === TILE.VOID;
+    }
+
+    function teleportPlayerToSpawn() {
+      player.x = PLAYER_SPAWN.x;
+      player.y = PLAYER_SPAWN.y;
+      player.vx = 0;
+      player.vy = 0;
+      player.onGround = false;
+      player.airbornePeakY = player.y;
     }
 
     function updatePlayerFallDamage(wasOnGround, didJump) {
@@ -421,7 +839,7 @@
           const fallBlocks = Math.floor(fallPixels / TILE_SIZE);
           const damage = Math.max(0, fallBlocks - 2);
           if (damage > 0) {
-            player.hp = Math.max(0, player.hp - damage);
+              applyDamage(player, damage);
           }
         }
       }
@@ -433,13 +851,50 @@
 
     function applyPlayerStuckDamage(dt) {
       if (isEntityInsideSolid(player)) {
-        player.hp = Math.max(0, player.hp - 4 * dt);
+        applyDamage(player, 4 * dt);
+      }
+    }
+
+    function applyPlayerLavaDamage(dt, inLava) {
+      if (inLava) {
+        applyDamage(player, 2 * dt);
+      }
+    }
+
+    function applyPlayerRegen(dt) {
+      if (gameMode !== "survival") {
+        return;
+      }
+      if (player.hp >= player.maxHp) {
+        return;
+      }
+      if (timeSeconds - player.lastDamagedAt < 60) {
+        return;
+      }
+      player.hp = Math.min(player.maxHp, player.hp + 4 * dt);
+    }
+
+    function applyDamage(entity, amount) {
+      if (!entity || amount <= 0 || entity.hp <= 0) {
+        return;
+      }
+      if (entity === player && gameMode === "creative") {
+        return;
+      }
+      entity.hp = Math.max(0, entity.hp - amount);
+      entity.hurtTimer = 0.5;
+      if (entity === player) {
+        player.lastDamagedAt = timeSeconds;
       }
     }
 
     function resetGameIfPlayerDead() {
+      if (gameMode === "creative") {
+        return false;
+      }
       if (player.hp <= 0) {
-        window.location.reload();
+        isDead = true;
+        deathOverlay.style.display = "flex";
         return true;
       }
       return false;
@@ -448,6 +903,11 @@
     function updateAnimals(dt) {
       for (let i = animals.length - 1; i >= 0; i--) {
         const animal = animals[i];
+        animal.hurtTimer = Math.max(0, animal.hurtTimer - dt);
+        if (animal.aquatic) {
+          updateAquaticAnimal(animal, dt);
+          continue;
+        }
         animal.aiTimer -= dt;
         animal.jumpCooldown -= dt;
         if (animal.aiTimer <= 0) {
@@ -468,13 +928,34 @@
         }
 
         if (isEntityInsideSolid(animal)) {
-          animal.hp -= 5 * dt;
+          applyDamage(animal, 5 * dt);
           if (animal.hp <= 0) {
             spawnAnimalDrops(animal);
             animals.splice(i, 1);
           }
         }
       }
+    }
+
+    function updateAquaticAnimal(animal, dt) {
+      animal.aiTimer -= dt;
+      if (animal.aiTimer <= 0) {
+        animal.direction = Math.random() < 0.5 ? -1 : 1;
+        animal.aiTimer = 1 + Math.random() * 2;
+      }
+      animal.x += animal.direction * animal.speed * 0.6 * dt;
+      animal.swimPhase += dt * 3;
+      animal.y += Math.sin(animal.swimPhase) * 16 * dt;
+
+      const centerTileX = clamp(Math.floor((animal.x + animal.w / 2) / TILE_SIZE), 0, WORLD_WIDTH - 1);
+      if (biomeTypes[centerTileX] !== "sea") {
+        animal.direction *= -1;
+      }
+
+      const minY = seaLevels[centerTileX] * TILE_SIZE + 4;
+      const maxY = (surfaceHeights[centerTileX] - 1) * TILE_SIZE - animal.h - 2;
+      animal.y = clamp(animal.y, minY, Math.max(minY, maxY));
+      animal.x = clamp(animal.x, 0, worldPixelWidth - animal.w);
     }
 
     function shouldAnimalJump(animal) {
@@ -529,6 +1010,161 @@
       }
     }
 
+    function updateWaterFlow(dt) {
+      waterFlowAccumulator += dt;
+      if (waterFlowAccumulator < 0.08) {
+        return;
+      }
+      waterFlowAccumulator = 0;
+      flowFluid(TILE.WATER);
+    }
+
+    function updateLavaFlow(dt) {
+      lavaFlowAccumulator += dt;
+      if (lavaFlowAccumulator < 0.18) {
+        return;
+      }
+      lavaFlowAccumulator = 0;
+      flowFluid(TILE.LAVA);
+    }
+
+    function flowFluid(fluidType) {
+      const startX = Math.max(1, Math.floor(camera.x / TILE_SIZE) - 20);
+      const endX = Math.min(WORLD_WIDTH - 2, Math.ceil((camera.x + canvas.width) / TILE_SIZE) + 20);
+      const startY = Math.max(1, Math.floor(camera.y / TILE_SIZE) - 20);
+      const endY = Math.min(WORLD_HEIGHT - 3, Math.ceil((camera.y + canvas.height) / TILE_SIZE) + 30);
+      const moves = [];
+      const occupied = new Set();
+
+      for (let y = endY; y >= startY; y--) {
+        for (let x = startX; x <= endX; x++) {
+          if (world[y][x] !== fluidType) {
+            continue;
+          }
+          const downY = y + 1;
+          if (isFluidFlowTarget(x, downY)) {
+            scheduleWaterMove(x, y, x, downY, moves, occupied);
+            continue;
+          }
+          const dirs = Math.random() < 0.5 ? [-1, 1] : [1, -1];
+          for (const dir of dirs) {
+            const nx = x + dir;
+            if (isFluidFlowTarget(nx, y)) {
+              scheduleWaterMove(x, y, nx, y, moves, occupied);
+              break;
+            }
+          }
+        }
+      }
+
+      for (const move of moves) {
+        if (world[move.fromY][move.fromX] !== fluidType) {
+          continue;
+        }
+        if (!isFluidFlowTarget(move.toX, move.toY)) {
+          continue;
+        }
+        world[move.toY][move.toX] = fluidType;
+        world[move.fromY][move.fromX] = TILE.AIR;
+      }
+    }
+
+    function resolveFluidReactions() {
+      const startX = Math.max(1, Math.floor(camera.x / TILE_SIZE) - 24);
+      const endX = Math.min(WORLD_WIDTH - 2, Math.ceil((camera.x + canvas.width) / TILE_SIZE) + 24);
+      const startY = Math.max(1, Math.floor(camera.y / TILE_SIZE) - 24);
+      const endY = Math.min(WORLD_HEIGHT - 2, Math.ceil((camera.y + canvas.height) / TILE_SIZE) + 24);
+      const toStone = [];
+
+      for (let y = startY; y <= endY; y++) {
+        for (let x = startX; x <= endX; x++) {
+          const tile = world[y][x];
+          if (tile !== TILE.WATER && tile !== TILE.LAVA) {
+            continue;
+          }
+          if (hasAdjacentOppositeFluid(x, y, tile)) {
+            toStone.push([x, y]);
+          }
+        }
+      }
+
+      for (const [x, y] of toStone) {
+        world[y][x] = TILE.STONE;
+      }
+    }
+
+    function updateFallingSand(dt) {
+      sandFallAccumulator += dt;
+      if (sandFallAccumulator < 0.06) {
+        return;
+      }
+      sandFallAccumulator = 0;
+
+      const startX = Math.max(1, Math.floor(camera.x / TILE_SIZE) - 24);
+      const endX = Math.min(WORLD_WIDTH - 2, Math.ceil((camera.x + canvas.width) / TILE_SIZE) + 24);
+      const startY = Math.max(1, Math.floor(camera.y / TILE_SIZE) - 24);
+      const endY = Math.min(WORLD_HEIGHT - 3, Math.ceil((camera.y + canvas.height) / TILE_SIZE) + 30);
+      const moves = [];
+      const occupied = new Set();
+
+      for (let y = endY; y >= startY; y--) {
+        for (let x = startX; x <= endX; x++) {
+          if (world[y][x] !== TILE.SAND) {
+            continue;
+          }
+          const belowY = y + 1;
+          if (!inWorld(x, belowY)) {
+            continue;
+          }
+          const belowTile = world[belowY][x];
+          if (belowTile !== TILE.AIR && belowTile !== TILE.VOID && belowTile !== TILE.WATER && belowTile !== TILE.LAVA) {
+            continue;
+          }
+          const key = `${x},${belowY}`;
+          if (occupied.has(key)) {
+            continue;
+          }
+          occupied.add(key);
+          moves.push({ fromX: x, fromY: y, toX: x, toY: belowY, displaced: belowTile });
+        }
+      }
+
+      for (const move of moves) {
+        if (world[move.fromY][move.fromX] !== TILE.SAND) {
+          continue;
+        }
+        world[move.toY][move.toX] = TILE.SAND;
+        world[move.fromY][move.fromX] = move.displaced === TILE.WATER || move.displaced === TILE.LAVA ? move.displaced : TILE.AIR;
+      }
+    }
+
+    function hasAdjacentOppositeFluid(x, y, tile) {
+      const opposite = tile === TILE.WATER ? TILE.LAVA : TILE.WATER;
+      return (
+        getTile(x + 1, y) === opposite ||
+        getTile(x - 1, y) === opposite ||
+        getTile(x, y + 1) === opposite ||
+        getTile(x, y - 1) === opposite
+      );
+    }
+
+    function scheduleWaterMove(fromX, fromY, toX, toY, moves, occupied) {
+      const key = `${toX},${toY}`;
+      if (occupied.has(key)) {
+        return;
+      }
+      occupied.add(key);
+      moves.push({ fromX, fromY, toX, toY });
+    }
+
+    function isFluidFlowTarget(tx, ty) {
+      if (!inWorld(tx, ty)) {
+        return false;
+      }
+      const tile = world[ty][tx];
+      return tile === TILE.AIR || tile === TILE.VOID;
+    }
+
     function updateAnimalSpawning(dt) {
       SPAWN.timer -= dt;
       if (SPAWN.timer > 0) {
@@ -539,12 +1175,19 @@
         return;
       }
 
-      const type = ANIMAL_TYPES[Math.floor(Math.random() * ANIMAL_TYPES.length)];
-      const aroundPlayerTiles = 12 + Math.floor(Math.random() * 8);
-      const direction = Math.random() < 0.5 ? -1 : 1;
-      const spawnTileX = Math.floor((player.x + player.w / 2) / TILE_SIZE) + direction * aroundPlayerTiles;
-      const x = Math.max(2 * TILE_SIZE, Math.min((WORLD_WIDTH - 3) * TILE_SIZE, spawnTileX * TILE_SIZE));
-      animals.push(createAnimal(type, x));
+      if (Math.random() < 0.3) {
+        const seaX = findRandomSeaX();
+        if (seaX !== -1) {
+          const seaType = SEA_ANIMAL_TYPES[Math.floor(Math.random() * SEA_ANIMAL_TYPES.length)];
+          animals.push(createAnimal(seaType, seaX * TILE_SIZE));
+          return;
+        }
+      }
+      const landType = LAND_ANIMAL_TYPES[Math.floor(Math.random() * LAND_ANIMAL_TYPES.length)];
+      const landX = findRandomLandX();
+      if (landX !== -1) {
+        animals.push(createAnimal(landType, landX * TILE_SIZE));
+      }
     }
 
     function handleMouseAction(event) {
@@ -564,7 +1207,7 @@
         if (tryConsumeSelectedFood()) {
           return;
         }
-        tryPlaceStoneArea(pointer.worldX, pointer.worldY);
+        tryPlaceSelectedBlock(pointer.worldX, pointer.worldY);
       }
     }
 
@@ -610,7 +1253,7 @@
           continue;
         }
 
-        animal.hp -= 1;
+        applyDamage(animal, 1);
         if (animal.hp <= 0) {
           spawnAnimalDrops(animal);
           animals.splice(i, 1);
@@ -634,6 +1277,13 @@
         return false;
       }
       const tile = world[ty][tx];
+      if (gameMode === "creative") {
+        if (tile === TILE.AIR || tile === TILE.VOID) {
+          return false;
+        }
+        world[ty][tx] = TILE.AIR;
+        return true;
+      }
       const dropType = BLOCK_BREAK_DROP_MAP[tile];
       if (!dropType) {
         return false;
@@ -643,16 +1293,27 @@
       return true;
     }
 
-    function tryPlaceStoneArea(worldX, worldY) {
+    function tryPlaceSelectedBlock(worldX, worldY) {
+      const selectedType = hotbarSlots[selectedHotbarIndex];
+      if (!selectedType || !PLACEABLE_BLOCKS.has(selectedType)) {
+        return false;
+      }
       const tx = Math.floor(worldX / TILE_SIZE);
       const ty = Math.floor(worldY / TILE_SIZE);
       if (!inWorld(tx, ty)) {
-        return;
+        return false;
       }
       const tile = world[ty][tx];
-      if (tile === TILE.AIR || tile === TILE.VOID) {
-        world[ty][tx] = TILE.STONE;
+      if (!(tile === TILE.AIR || tile === TILE.VOID)) {
+        return false;
       }
+      if (gameMode !== "creative") {
+        if (!removeFromInventory(selectedType, 1)) {
+          return false;
+        }
+      }
+      world[ty][tx] = selectedType;
+      return true;
     }
 
     function addToInventory(type, amount) {
@@ -856,9 +1517,12 @@
       for (const animal of animals) {
         renderEntity(animal);
       }
+      renderNightOverlay();
 
       renderStats();
-      renderPlayerStars();
+      if (gameMode === "survival") {
+        renderPlayerStars();
+      }
       renderHotbar();
       if (inventoryOpen) {
         renderInventory();
@@ -910,6 +1574,21 @@
       }
     }
 
+    function renderNightOverlay() {
+      if (!isNightTime()) {
+        return;
+      }
+      ctx.fillStyle = "rgba(10, 14, 30, 0.55)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function isNightTime() {
+      const cycle = 25 * 60;
+      const nightStart = 20 * 60;
+      const t = timeSeconds % cycle;
+      return t >= nightStart;
+    }
+
     function renderClouds() {
       ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
       for (const cloud of clouds) {
@@ -944,6 +1623,10 @@
 
       ctx.fillStyle = entity.color;
       ctx.fillRect(px, py, entity.w, entity.h);
+      if (entity.hurtTimer > 0) {
+        ctx.fillStyle = "rgba(255, 170, 170, 0.55)";
+        ctx.fillRect(px, py, entity.w, entity.h);
+      }
 
       ctx.fillStyle = "#111";
       const eyeY = py + entity.h * 0.3;
@@ -1068,21 +1751,22 @@
         const x = startX + i * (slotSize + gap);
         const type = hotbarSlots[i];
         const count = type ? (inventory[type] || 0) : 0;
-        drawSlot(x, y, slotSize, slotSize, type, count, i === selectedHotbarIndex);
+        const showInfinity = gameMode === "creative" && !!type && PLACEABLE_BLOCKS.has(type);
+        drawSlot(x, y, slotSize, slotSize, type, count, i === selectedHotbarIndex, showInfinity);
         ctx.fillStyle = "#e5e5e5";
         ctx.font = "12px Arial";
         ctx.fillText(String(i + 1), x + 4, y + 14);
       }
     }
 
-    function drawSlot(x, y, w, h, itemType, count, selected) {
+    function drawSlot(x, y, w, h, itemType, count, selected, showInfinity = false) {
       ctx.fillStyle = "rgba(80, 80, 80, 0.95)";
       ctx.fillRect(x, y, w, h);
       ctx.strokeStyle = selected ? "#ffd54f" : "#d0d0d0";
       ctx.lineWidth = selected ? 3 : 2;
       ctx.strokeRect(x, y, w, h);
 
-      if (!itemType || count <= 0) {
+      if (!itemType || (!showInfinity && count <= 0)) {
         return;
       }
       const color = DROP_COLORS[itemType] || TILE_COLORS[itemType] || "#ffffff";
@@ -1097,7 +1781,7 @@
 
       ctx.fillStyle = "#ffffff";
       ctx.font = "12px Arial";
-      ctx.fillText(String(count), x + w - 20, y + h - 8);
+      ctx.fillText(showInfinity ? "∞" : String(count), x + w - 20, y + h - 8);
 
       const name = formatItemName(itemType);
       ctx.fillStyle = "#f0f0f0";
@@ -1117,6 +1801,7 @@
       const names = {
         grass: "草方块",
         dirt: "泥土",
+        sand: "沙子",
         stone: "原石",
         coal: "煤矿",
         iron: "铁矿",
@@ -1130,7 +1815,9 @@
         wool: "羊毛",
         mutton: "羊肉",
         raw_beef: "生牛肉",
-        leather: "皮革"
+        leather: "皮革",
+        fish_meat: "鱼肉",
+        ink_sac: "墨囊"
       };
       return names[type] || type;
     }
@@ -1144,15 +1831,19 @@
       const dt = Math.min(rawDt, 0.033);
       timeSeconds += dt;
 
-      updatePlayer(dt);
-      if (resetGameIfPlayerDead()) {
-        return;
+      if (!isDead) {
+        updatePlayer(dt);
+        resetGameIfPlayerDead();
+        updateAnimals(dt);
+        updateAnimalSpawning(dt);
+        updateClouds(dt);
+        updateDrops(dt);
+        updateWaterFlow(dt);
+        updateLavaFlow(dt);
+        resolveFluidReactions();
+        updateFallingSand(dt);
+        updateCamera();
       }
-      updateAnimals(dt);
-      updateAnimalSpawning(dt);
-      updateClouds(dt);
-      updateDrops(dt);
-      updateCamera();
       render();
 
       requestAnimationFrame(gameLoop);
