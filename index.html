@@ -196,6 +196,388 @@
       crafting_table: "#7d5231"
     };
 
+    const TILE_TEXTURE_PATHS = {
+      [TILE.GRASS]: "assets/textures/tiles/grass.png",
+      [TILE.DIRT]: "assets/textures/tiles/dirt.png",
+      [TILE.STONE]: "assets/textures/tiles/stone.png",
+      [TILE.COAL]: "generated:tile:coal_ore",
+      [TILE.IRON]: "generated:tile:iron_ore",
+      [TILE.GOLD]: "generated:tile:gold_ore",
+      [TILE.DIAMOND]: "generated:tile:diamond_ore",
+      [TILE.BEDROCK]: "assets/textures/tiles/bedrock.png",
+      [TILE.VOID]: "generated:tile:void",
+      [TILE.WOOD]: "assets/textures/tiles/log.png",
+      [TILE.LEAF]: "assets/textures/tiles/leaves.png",
+      [TILE.WOOD_PLANK]: "assets/textures/tiles/planks.png",
+      [TILE.CRAFTING_TABLE]: "generated:tile:crafting_table",
+      [TILE.SAND]: "assets/textures/tiles/sand.png",
+      [TILE.WATER]: "assets/textures/tiles/water.png",
+      [TILE.LAVA]: "assets/textures/tiles/lava.png"
+    };
+
+    const VANILLA_TEXTURE_BASE = "assets/vanilla/textures";
+    const VANILLA_TILE_TEXTURE_PATHS = {
+      [TILE.GRASS]: `${VANILLA_TEXTURE_BASE}/block/grass_block_side.png`,
+      [TILE.DIRT]: `${VANILLA_TEXTURE_BASE}/block/dirt.png`,
+      [TILE.STONE]: `${VANILLA_TEXTURE_BASE}/block/stone.png`,
+      [TILE.COAL]: `${VANILLA_TEXTURE_BASE}/block/coal_ore.png`,
+      [TILE.IRON]: `${VANILLA_TEXTURE_BASE}/block/iron_ore.png`,
+      [TILE.GOLD]: `${VANILLA_TEXTURE_BASE}/block/gold_ore.png`,
+      [TILE.DIAMOND]: `${VANILLA_TEXTURE_BASE}/block/diamond_ore.png`,
+      [TILE.BEDROCK]: `${VANILLA_TEXTURE_BASE}/block/bedrock.png`,
+      [TILE.WOOD]: `${VANILLA_TEXTURE_BASE}/block/oak_log.png`,
+      [TILE.LEAF]: `${VANILLA_TEXTURE_BASE}/block/oak_leaves.png`,
+      [TILE.WOOD_PLANK]: `${VANILLA_TEXTURE_BASE}/block/oak_planks.png`,
+      [TILE.CRAFTING_TABLE]: `${VANILLA_TEXTURE_BASE}/block/crafting_table_side.png`,
+      [TILE.SAND]: `${VANILLA_TEXTURE_BASE}/block/sand.png`,
+      [TILE.WATER]: `${VANILLA_TEXTURE_BASE}/block/water_still.png`,
+      [TILE.LAVA]: `${VANILLA_TEXTURE_BASE}/block/lava_still.png`
+    };
+
+    const ITEM_TEXTURE_PATHS = {
+      grass_drop: "generated:item:grass_drop",
+      raw_pork: "generated:item:raw_pork",
+      wool: "generated:item:wool",
+      mutton: "generated:item:mutton",
+      raw_beef: "generated:item:raw_beef",
+      leather: "generated:item:leather",
+      fish_meat: "generated:item:fish_meat",
+      ink_sac: "generated:item:ink_sac",
+      rotten_flesh: "generated:item:rotten_flesh",
+      wood_plank: "assets/textures/tiles/planks.png",
+      crafting_table: "generated:tile:crafting_table"
+    };
+
+    const VANILLA_ITEM_TEXTURE_PATHS = {
+      raw_pork: `${VANILLA_TEXTURE_BASE}/item/porkchop.png`,
+      raw_beef: `${VANILLA_TEXTURE_BASE}/item/beef.png`,
+      mutton: `${VANILLA_TEXTURE_BASE}/item/mutton.png`,
+      leather: `${VANILLA_TEXTURE_BASE}/item/leather.png`,
+      ink_sac: `${VANILLA_TEXTURE_BASE}/item/ink_sac.png`,
+      rotten_flesh: `${VANILLA_TEXTURE_BASE}/item/rotten_flesh.png`,
+      fish_meat: `${VANILLA_TEXTURE_BASE}/item/cod.png`,
+      wool: `${VANILLA_TEXTURE_BASE}/block/white_wool.png`,
+      wood_plank: `${VANILLA_TEXTURE_BASE}/block/oak_planks.png`,
+      crafting_table: `${VANILLA_TEXTURE_BASE}/block/crafting_table_side.png`
+    };
+
+    const VANILLA_ENTITY_TEXTURE_PATHS = {
+      player: `${VANILLA_TEXTURE_BASE}/entity/player/wide/steve.png`,
+      pig: `${VANILLA_TEXTURE_BASE}/entity/pig/pig.png`,
+      cow: `${VANILLA_TEXTURE_BASE}/entity/cow/cow.png`,
+      sheep: `${VANILLA_TEXTURE_BASE}/entity/sheep/sheep.png`,
+      zombie: `${VANILLA_TEXTURE_BASE}/entity/zombie/zombie.png`,
+      chicken: `${VANILLA_TEXTURE_BASE}/entity/chicken.png`,
+      squid: `${VANILLA_TEXTURE_BASE}/entity/squid/squid.png`,
+      fish: `${VANILLA_TEXTURE_BASE}/entity/fish/cod.png`
+    };
+
+    const AUX_TEXTURE_PATHS = {
+      mineral_coal: "assets/textures/tiles/mineral_coal.png",
+      mineral_iron: "assets/textures/tiles/mineral_iron.png",
+      mineral_gold: "assets/textures/tiles/mineral_gold.png",
+      mineral_diamond: "assets/textures/tiles/mineral_diamond.png"
+    };
+
+    const assetState = {
+      total: 0,
+      loaded: 0,
+      ready: false
+    };
+
+    const loadedImages = new Map();
+    const scaledCache = new Map();
+
+    function loadImage(url) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve({ url, img, ok: true });
+        img.onerror = () => resolve({ url, img: null, ok: false });
+        img.src = url;
+      });
+    }
+
+    async function loadAllAssets() {
+      const urls = [
+        ...Object.values(TILE_TEXTURE_PATHS),
+        ...Object.values(VANILLA_TILE_TEXTURE_PATHS),
+        ...Object.values(ITEM_TEXTURE_PATHS),
+        ...Object.values(VANILLA_ITEM_TEXTURE_PATHS),
+        ...Object.values(VANILLA_ENTITY_TEXTURE_PATHS),
+        ...Object.values(AUX_TEXTURE_PATHS)
+      ];
+      const uniqueUrls = Array.from(new Set(urls.filter((u) => u && !u.startsWith("generated:"))));
+      assetState.total = uniqueUrls.length;
+      assetState.loaded = 0;
+      assetState.ready = false;
+      await Promise.all(
+        uniqueUrls.map(async (url) => {
+          const res = await loadImage(url);
+          assetState.loaded += 1;
+          if (res.ok) loadedImages.set(url, res.img);
+        })
+      );
+      assetState.ready = true;
+    }
+
+    function getLoadedImage(url) {
+      if (!url) return null;
+      const existing = loadedImages.get(url);
+      if (existing) return existing;
+      if (url.startsWith("generated:")) {
+        const generated = generateTextureForKey(url);
+        if (generated) {
+          loadedImages.set(url, generated);
+          return generated;
+        }
+      }
+      return null;
+    }
+
+    function getScaledImage(img, size) {
+      if (!img) return null;
+      const srcKey = img instanceof HTMLCanvasElement ? `canvas:${img.width}x${img.height}` : img.src;
+      const key = `${srcKey}@${size}`;
+      const cached = scaledCache.get(key);
+      if (cached) return cached;
+      const c = document.createElement("canvas");
+      c.width = size;
+      c.height = size;
+      const cctx = c.getContext("2d");
+      cctx.imageSmoothingEnabled = false;
+      const sw = img instanceof HTMLCanvasElement ? img.width : img.naturalWidth || img.width;
+      const sh = img instanceof HTMLCanvasElement ? img.height : img.naturalHeight || img.height;
+      const frameSize = Math.min(sw, sh);
+      cctx.drawImage(img, 0, 0, frameSize, frameSize, 0, 0, size, size);
+      scaledCache.set(key, c);
+      return c;
+    }
+
+    function getPreferredTileImage(tile) {
+      const vanillaUrl = VANILLA_TILE_TEXTURE_PATHS[tile];
+      const vanillaImg = vanillaUrl ? getLoadedImage(vanillaUrl) : null;
+      if (vanillaImg) return vanillaImg;
+      const fallbackUrl = TILE_TEXTURE_PATHS[tile];
+      return fallbackUrl ? getLoadedImage(fallbackUrl) : null;
+    }
+
+    function getPreferredItemImage(type) {
+      const vanillaUrl = VANILLA_ITEM_TEXTURE_PATHS[type];
+      const vanillaImg = vanillaUrl ? getLoadedImage(vanillaUrl) : null;
+      if (vanillaImg) return vanillaImg;
+      const fallbackUrl = ITEM_TEXTURE_PATHS[type] || TILE_TEXTURE_PATHS[type];
+      return fallbackUrl ? getLoadedImage(fallbackUrl) : null;
+    }
+
+    function getPreferredEntityImage(type) {
+      const vanillaUrl = VANILLA_ENTITY_TEXTURE_PATHS[type];
+      const vanillaImg = vanillaUrl ? getLoadedImage(vanillaUrl) : null;
+      if (vanillaImg) return vanillaImg;
+      return null;
+    }
+
+    function generateTextureForKey(key) {
+      const parts = key.split(":");
+      if (parts.length < 3) return null;
+      const domain = parts[1];
+      const id = parts.slice(2).join(":");
+      const c = document.createElement("canvas");
+      c.width = 16;
+      c.height = 16;
+      const g = c.getContext("2d");
+      g.imageSmoothingEnabled = false;
+
+      function px(x, y, w, h, color) {
+        g.fillStyle = color;
+        g.fillRect(x, y, w, h);
+      }
+
+      if (domain === "tile") {
+        if (id === "void") {
+          px(0, 0, 16, 16, "#05060a");
+          px(3, 4, 1, 1, "#9aa0a6");
+          px(12, 2, 1, 1, "#c0c4c8");
+          px(10, 10, 1, 1, "#9aa0a6");
+          px(6, 12, 1, 1, "#c0c4c8");
+          return c;
+        }
+        if (id === "crafting_table") {
+          const planks = loadedImages.get("assets/textures/tiles/planks.png");
+          if (planks) {
+            const plankTile = getScaledImage(planks, 16);
+            if (plankTile) {
+              g.drawImage(plankTile, 0, 0, 16, 16);
+            }
+          } else {
+            px(0, 0, 16, 16, "#c58a43");
+          }
+          g.strokeStyle = "rgba(0,0,0,0.35)";
+          g.lineWidth = 1;
+          g.strokeRect(0.5, 0.5, 15, 15);
+          g.strokeRect(3.5, 3.5, 9, 9);
+          return c;
+        }
+        const oreMap = {
+          coal_ore: AUX_TEXTURE_PATHS.mineral_coal,
+          iron_ore: AUX_TEXTURE_PATHS.mineral_iron,
+          gold_ore: AUX_TEXTURE_PATHS.mineral_gold,
+          diamond_ore: AUX_TEXTURE_PATHS.mineral_diamond
+        };
+        const overlayUrl = oreMap[id];
+        const stone = loadedImages.get("assets/textures/tiles/stone.png");
+        const overlay = overlayUrl ? loadedImages.get(overlayUrl) : null;
+        if (stone) {
+          const baseTile = getScaledImage(stone, 16);
+          if (baseTile) g.drawImage(baseTile, 0, 0, 16, 16);
+        } else {
+          px(0, 0, 16, 16, "#8d8d8d");
+        }
+        if (overlay) {
+          const overlayTile = getScaledImage(overlay, 16);
+          if (overlayTile) g.drawImage(overlayTile, 0, 0, 16, 16);
+          return c;
+        }
+        return null;
+      }
+
+      if (domain === "item") {
+        const color = DROP_COLORS[id] || TILE_COLORS[id] || "#ffffff";
+        px(0, 0, 16, 16, "rgba(0,0,0,0)");
+        px(2, 2, 12, 12, color);
+        px(4, 4, 8, 3, "rgba(255,255,255,0.25)");
+        px(5, 8, 2, 2, "rgba(0,0,0,0.18)");
+        px(9, 10, 3, 2, "rgba(0,0,0,0.18)");
+        g.strokeStyle = "rgba(0,0,0,0.45)";
+        g.lineWidth = 1;
+        g.strokeRect(2.5, 2.5, 11, 11);
+        return c;
+      }
+
+      return null;
+    }
+
+    const entitySpriteCache = new Map();
+    const baseSpriteCache = new Map();
+
+    function getEntitySprite(type, w, h) {
+      const key = `${type}@${w}x${h}`;
+      const cached = entitySpriteCache.get(key);
+      if (cached) return cached;
+      const vanilla = getPreferredEntityImage(type);
+      if (vanilla) {
+        const out = document.createElement("canvas");
+        out.width = w;
+        out.height = h;
+        const octx = out.getContext("2d");
+        octx.imageSmoothingEnabled = false;
+        const sw = vanilla.naturalWidth || vanilla.width;
+        const sh = vanilla.naturalHeight || vanilla.height;
+        const frameSize = Math.min(sw, sh);
+        octx.drawImage(vanilla, 0, 0, frameSize, frameSize, 0, 0, w, h);
+        entitySpriteCache.set(key, out);
+        return out;
+      }
+
+      const base = getBaseEntitySprite(type);
+      if (!base) return null;
+      const out = document.createElement("canvas");
+      out.width = w;
+      out.height = h;
+      const octx = out.getContext("2d");
+      octx.imageSmoothingEnabled = false;
+      octx.drawImage(base, 0, 0, w, h);
+      entitySpriteCache.set(key, out);
+      return out;
+    }
+
+    function getBaseEntitySprite(type) {
+      const cached = baseSpriteCache.get(type);
+      if (cached) return cached;
+      const c = document.createElement("canvas");
+      c.width = 16;
+      c.height = 16;
+      const g = c.getContext("2d");
+      g.imageSmoothingEnabled = false;
+
+      function px(x, y, w, h, color) {
+        g.fillStyle = color;
+        g.fillRect(x, y, w, h);
+      }
+
+      g.clearRect(0, 0, 16, 16);
+
+      if (type === "player") {
+        px(5, 1, 6, 5, "#f2c7a8");
+        px(5, 6, 6, 5, "#2f80ed");
+        px(6, 11, 2, 4, "#2d2d2d");
+        px(9, 11, 2, 4, "#2d2d2d");
+        px(3, 6, 2, 6, "#2f80ed");
+        px(11, 6, 2, 6, "#2f80ed");
+        px(6, 3, 1, 1, "#1a1a1a");
+        px(9, 3, 1, 1, "#1a1a1a");
+      } else if (type === "pig") {
+        px(2, 6, 12, 7, "#ff9dad");
+        px(4, 4, 8, 3, "#ffb6c3");
+        px(5, 7, 6, 3, "#ff7f96");
+        px(6, 8, 1, 1, "#1a1a1a");
+        px(9, 8, 1, 1, "#1a1a1a");
+        px(4, 13, 2, 2, "#c26b7c");
+        px(10, 13, 2, 2, "#c26b7c");
+      } else if (type === "cow") {
+        px(2, 6, 12, 7, "#f2f2f2");
+        px(4, 4, 8, 3, "#f7f7f7");
+        px(4, 7, 3, 2, "#2b2b2b");
+        px(9, 9, 3, 2, "#2b2b2b");
+        px(6, 8, 1, 1, "#1a1a1a");
+        px(9, 8, 1, 1, "#1a1a1a");
+        px(4, 13, 2, 2, "#8a5a2b");
+        px(10, 13, 2, 2, "#8a5a2b");
+      } else if (type === "sheep") {
+        px(2, 5, 12, 8, "#f5f5f5");
+        px(4, 3, 8, 3, "#ffffff");
+        px(6, 8, 1, 1, "#1a1a1a");
+        px(9, 8, 1, 1, "#1a1a1a");
+        px(5, 13, 2, 2, "#777777");
+        px(9, 13, 2, 2, "#777777");
+      } else if (type === "zombie") {
+        px(5, 1, 6, 5, "#4caf50");
+        px(5, 6, 6, 5, "#2e7d32");
+        px(6, 11, 2, 4, "#3d3d3d");
+        px(9, 11, 2, 4, "#3d3d3d");
+        px(3, 6, 2, 6, "#2e7d32");
+        px(11, 6, 2, 6, "#2e7d32");
+        px(6, 3, 1, 1, "#111111");
+        px(9, 3, 1, 1, "#111111");
+      } else if (type === "chicken") {
+        px(4, 6, 8, 7, "#ffffff");
+        px(6, 4, 4, 2, "#ffffff");
+        px(7, 8, 2, 2, "#f2994a");
+        px(6, 13, 2, 2, "#f2d94e");
+        px(10, 13, 2, 2, "#f2d94e");
+        px(6, 7, 1, 1, "#111111");
+        px(9, 7, 1, 1, "#111111");
+      } else if (type === "fish") {
+        px(3, 7, 10, 4, "#ffb38a");
+        px(2, 8, 1, 2, "#ffd1b5");
+        px(13, 8, 1, 2, "#ffd1b5");
+        px(10, 6, 2, 1, "#ffb38a");
+        px(10, 11, 2, 1, "#ffb38a");
+        px(5, 8, 1, 1, "#111111");
+      } else if (type === "squid") {
+        px(5, 5, 6, 6, "#2b2b3a");
+        px(4, 11, 2, 4, "#2b2b3a");
+        px(7, 11, 2, 4, "#2b2b3a");
+        px(10, 11, 2, 4, "#2b2b3a");
+        px(6, 7, 1, 1, "#f2f2f2");
+        px(9, 7, 1, 1, "#f2f2f2");
+      } else {
+        px(2, 2, 12, 12, "#9aa0a6");
+      }
+
+      baseSpriteCache.set(type, c);
+      return c;
+    }
+
     const ANIMAL_STATS = {
       pig: { hp: 10, drops: ["raw_pork"] },
       sheep: { hp: 8, drops: ["wool", "mutton"] },
@@ -225,7 +607,7 @@
     const SEA_ANIMAL_TYPES = ["fish", "squid"];
     const ANIMAL_DENSITY = {
       segmentWidth: 100,
-      minPerSegment: 20
+      minPerSegment: 80
     };
     const FOOD_HEAL = {
       raw_pork: 2,
@@ -829,13 +1211,13 @@
     };
     const SPAWN = {
       timer: 0,
-      interval: 1,
-      maxAnimals: Math.ceil(WORLD_WIDTH / ANIMAL_DENSITY.segmentWidth) * ANIMAL_DENSITY.minPerSegment + 120
+      interval: 0.35,
+      maxAnimals: Math.ceil(WORLD_WIDTH / ANIMAL_DENSITY.segmentWidth) * ANIMAL_DENSITY.minPerSegment + 400
     };
     const ZOMBIE_SPAWN = {
       timer: 0,
-      interval: 2,
-      maxZombies: 90
+      interval: 0.7,
+      maxZombies: 260
     };
     let waterFlowAccumulator = 0;
     let lavaFlowAccumulator = 0;
@@ -1303,7 +1685,7 @@
         return;
       }
       const counts = getSegmentAnimalCounts();
-      let budget = 24;
+      let budget = 160;
       for (let segment = 0; segment < counts.length; segment++) {
         while (counts[segment] < ANIMAL_DENSITY.minPerSegment && budget > 0 && animals.length < SPAWN.maxAnimals) {
           const animal = createAnimalInSegment(segment);
@@ -1713,10 +2095,19 @@
       for (let y = startY; y <= endY; y++) {
         for (let x = startX; x <= endX; x++) {
           const tile = world[y][x];
-          const color = TILE_COLORS[tile];
-          if (!color) continue;
+          if (tile === TILE.AIR) continue;
           const px = x * TILE_SIZE - camera.x;
           const py = y * TILE_SIZE - camera.y;
+          const img = getPreferredTileImage(tile);
+          if (img) {
+            const scaled = getScaledImage(img, TILE_SIZE);
+            if (scaled) {
+              ctx.drawImage(scaled, px, py, TILE_SIZE, TILE_SIZE);
+              continue;
+            }
+          }
+          const color = TILE_COLORS[tile] || (tile === TILE.VOID ? "#000000" : null);
+          if (!color) continue;
           ctx.fillStyle = color;
           ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
         }
@@ -1783,8 +2174,20 @@
         if (px + drop.w < 0 || py + drop.h < 0 || px > canvas.width || py > canvas.height) {
           continue;
         }
-        ctx.fillStyle = DROP_COLORS[drop.type] || TILE_COLORS[drop.type] || "#ffffff";
-        ctx.fillRect(px, py, drop.w, drop.h);
+        const img = getPreferredItemImage(drop.type);
+        if (img) {
+          const size = Math.min(drop.w, drop.h);
+          const scaled = getScaledImage(img, size);
+          if (scaled) {
+            ctx.drawImage(scaled, px, py, drop.w, drop.h);
+          } else {
+            ctx.fillStyle = DROP_COLORS[drop.type] || TILE_COLORS[drop.type] || "#ffffff";
+            ctx.fillRect(px, py, drop.w, drop.h);
+          }
+        } else {
+          ctx.fillStyle = DROP_COLORS[drop.type] || TILE_COLORS[drop.type] || "#ffffff";
+          ctx.fillRect(px, py, drop.w, drop.h);
+        }
         ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
         ctx.strokeRect(px, py, drop.w, drop.h);
       }
@@ -1794,17 +2197,24 @@
       const px = entity.x - camera.x;
       const py = entity.y - camera.y;
 
-      ctx.fillStyle = entity.color;
-      ctx.fillRect(px, py, entity.w, entity.h);
+      const sprite = getEntitySprite(entity.spriteType || entity.kind || entity.type || "player", entity.w, entity.h);
+      if (sprite) {
+        ctx.drawImage(sprite, px, py, entity.w, entity.h);
+      } else {
+        ctx.fillStyle = entity.color;
+        ctx.fillRect(px, py, entity.w, entity.h);
+      }
       if (entity.hurtTimer > 0) {
         ctx.fillStyle = "rgba(255, 170, 170, 0.55)";
         ctx.fillRect(px, py, entity.w, entity.h);
       }
 
-      ctx.fillStyle = "#111";
-      const eyeY = py + entity.h * 0.3;
-      ctx.fillRect(px + entity.w * 0.25, eyeY, 3, 3);
-      ctx.fillRect(px + entity.w * 0.65, eyeY, 3, 3);
+      if (!sprite) {
+        ctx.fillStyle = "#111";
+        const eyeY = py + entity.h * 0.3;
+        ctx.fillRect(px + entity.w * 0.25, eyeY, 3, 3);
+        ctx.fillRect(px + entity.w * 0.65, eyeY, 3, 3);
+      }
     }
 
     function renderStats() {
@@ -1942,12 +2352,24 @@
       if (!itemType || (!showInfinity && count <= 0)) {
         return;
       }
-      const color = DROP_COLORS[itemType] || TILE_COLORS[itemType] || "#ffffff";
       const iconSize = Math.floor(w * 0.45);
       const ix = x + 8;
       const iy = y + 8;
-      ctx.fillStyle = color;
-      ctx.fillRect(ix, iy, iconSize, iconSize);
+      const img = getPreferredItemImage(itemType);
+      if (img) {
+        const scaled = getScaledImage(img, iconSize);
+        if (scaled) {
+          ctx.drawImage(scaled, ix, iy, iconSize, iconSize);
+        } else {
+          const color = DROP_COLORS[itemType] || TILE_COLORS[itemType] || "#ffffff";
+          ctx.fillStyle = color;
+          ctx.fillRect(ix, iy, iconSize, iconSize);
+        }
+      } else {
+        const color = DROP_COLORS[itemType] || TILE_COLORS[itemType] || "#ffffff";
+        ctx.fillStyle = color;
+        ctx.fillRect(ix, iy, iconSize, iconSize);
+      }
       ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
       ctx.lineWidth = 1;
       ctx.strokeRect(ix, iy, iconSize, iconSize);
@@ -1995,6 +2417,8 @@
       };
       return names[type] || type;
     }
+
+    loadAllAssets();
 
     let lastTime = performance.now();
     let timeSeconds = 0;

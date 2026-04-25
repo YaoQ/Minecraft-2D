@@ -148,6 +148,46 @@ Minecraft-2D/
 
 ***
 
+## 🖼️ 贴图与资源
+
+- `assets/textures/tiles/` 下的方块贴图来源于 Minetest Game（Luanti）项目的 `mods/default/textures`，媒体资源许可为 CC BY-SA 3.0（参考：`mods/default/README.txt` / `mods/default/license.txt`）。
+- 本项目的代码仍按本仓库的 MIT License 发布；贴图文件按其各自许可使用。
+
+### 使用《我的世界》原版贴图（本机提取）
+
+项目支持“优先读取你自己电脑里提取的原版贴图”，放到本项目 `assets/vanilla/` 后会自动替换显示；如果某张图缺失，会自动回退到开源贴图/程序生成贴图，不会黑屏。
+
+1) 找到并解压原版 jar（以 26.1.2 为例）
+
+- 目录：`~/Library/Application Support/minecraft/versions/26.1.2/26.1.2.jar`
+- 解压后在 jar 内找到：
+  - `assets/minecraft/textures/block/`
+  - `assets/minecraft/textures/item/`
+  - `assets/minecraft/textures/entity/`
+
+2) 复制到本项目（保持目录结构）
+
+- 复制到：
+  - `assets/vanilla/textures/block/`
+  - `assets/vanilla/textures/item/`
+  - `assets/vanilla/textures/entity/`
+
+3) 建议先放入这些文件（最小可用）
+
+- 方块（block）：
+  - `grass_block_side.png`, `dirt.png`, `stone.png`, `sand.png`, `bedrock.png`
+  - `oak_log.png`, `oak_leaves.png`, `oak_planks.png`, `crafting_table_side.png`
+  - `coal_ore.png`, `iron_ore.png`, `gold_ore.png`, `diamond_ore.png`
+  - `water_still.png`, `lava_still.png`
+- 物品（item）：
+  - `rotten_flesh.png`, `beef.png`, `porkchop.png`, `mutton.png`, `leather.png`, `ink_sac.png`, `cod.png`
+- 生物（entity）（按原版目录拷贝）：
+  - `pig/pig.png`, `cow/cow.png`, `sheep/sheep.png`, `zombie/zombie.png`, `squid/squid.png`, `fish/cod.png`
+
+提示：`assets/vanilla/` 已被 `.gitignore` 忽略，避免把原版贴图误提交到仓库。
+
+***
+
 ## 📄 License
 
 本项目使用 [MIT License](./LICENSE)。
