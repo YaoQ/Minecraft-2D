@@ -2,3 +2,4 @@ assets/vanilla/
 assets/_tmp/
 .trae/
 .DS_Store
+.worktrees/
