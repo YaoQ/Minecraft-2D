@@ -192,6 +192,9 @@
       fish_meat: "#ffb38a",
       ink_sac: "#2b2b3a",
       rotten_flesh: "#8f5d4a",
+      bone: "#e8e6d6",
+      bow: "#b67a3c",
+      arrow: "#cfcfcf",
       wood_plank: "#c58a43",
       crafting_table: "#7d5231"
     };
@@ -244,6 +247,9 @@
       fish_meat: "generated:item:fish_meat",
       ink_sac: "generated:item:ink_sac",
       rotten_flesh: "generated:item:rotten_flesh",
+      bone: "generated:item:bone",
+      bow: "generated:item:bow",
+      arrow: "generated:item:arrow",
       wood_plank: "assets/textures/tiles/planks.png",
       crafting_table: "generated:tile:crafting_table"
     };
@@ -256,6 +262,9 @@
       ink_sac: `${VANILLA_TEXTURE_BASE}/item/ink_sac.png`,
       rotten_flesh: `${VANILLA_TEXTURE_BASE}/item/rotten_flesh.png`,
       fish_meat: `${VANILLA_TEXTURE_BASE}/item/cod.png`,
+      bone: `${VANILLA_TEXTURE_BASE}/item/bone.png`,
+      bow: `${VANILLA_TEXTURE_BASE}/item/bow.png`,
+      arrow: `${VANILLA_TEXTURE_BASE}/item/arrow.png`,
       wool: `${VANILLA_TEXTURE_BASE}/block/white_wool.png`,
       wood_plank: `${VANILLA_TEXTURE_BASE}/block/oak_planks.png`,
       crafting_table: `${VANILLA_TEXTURE_BASE}/block/crafting_table_side.png`
@@ -267,6 +276,7 @@
       cow: `${VANILLA_TEXTURE_BASE}/entity/cow/cow.png`,
       sheep: `${VANILLA_TEXTURE_BASE}/entity/sheep/sheep.png`,
       zombie: `${VANILLA_TEXTURE_BASE}/entity/zombie/zombie.png`,
+      skeleton: `${VANILLA_TEXTURE_BASE}/entity/skeleton/skeleton.png`,
       chicken: `${VANILLA_TEXTURE_BASE}/entity/chicken.png`,
       squid: `${VANILLA_TEXTURE_BASE}/entity/squid/squid.png`,
       fish: `${VANILLA_TEXTURE_BASE}/entity/fish/cod.png`
@@ -548,6 +558,17 @@
         px(11, 6, 2, 6, "#2e7d32");
         px(6, 3, 1, 1, "#111111");
         px(9, 3, 1, 1, "#111111");
+      } else if (type === "skeleton") {
+        px(5, 1, 6, 5, "#e8e6d6");
+        px(5, 6, 6, 5, "#d9d6c6");
+        px(6, 11, 2, 4, "#c9c6b6");
+        px(9, 11, 2, 4, "#c9c6b6");
+        px(3, 6, 2, 6, "#d9d6c6");
+        px(11, 6, 2, 6, "#d9d6c6");
+        px(6, 3, 1, 1, "#111111");
+        px(9, 3, 1, 1, "#111111");
+        px(7, 8, 2, 1, "#a7a49a");
+        px(7, 10, 2, 1, "#a7a49a");
       } else if (type === "chicken") {
         px(4, 6, 8, 7, "#ffffff");
         px(6, 4, 4, 2, "#ffffff");
@@ -585,7 +606,8 @@
       chicken: { hp: 4, drops: [] },
       fish: { hp: 4, drops: ["fish_meat"] },
       squid: { hp: 4, drops: ["ink_sac"] },
-      zombie: { hp: 20, drops: ["rotten_flesh", "rotten_flesh"] }
+      zombie: { hp: 20, drops: ["rotten_flesh", "rotten_flesh"] },
+      skeleton: { hp: 20, drops: ["bone", "bow", "arrow", "arrow"] }
     };
 
     const BLOCK_BREAK_DROP_MAP = {
@@ -1046,6 +1068,7 @@
         maxHp: 20,
         airbornePeakY: PLAYER_SPAWN.y,
         lastDamagedAt: 0,
+        bowCooldown: 0,
         hurtTimer: 0,
         onGround: false,
         color: "#2d7ff9"
@@ -1060,7 +1083,8 @@
         chicken: "#fff7d6",
         fish: "#ff9f43",
         squid: "#b388ff",
-        zombie: "#5e9e4a"
+        zombie: "#5e9e4a",
+        skeleton: "#d9d6c6"
       };
       const stats = ANIMAL_STATS[type];
       const aquatic = SEA_ANIMAL_TYPES.includes(type);
@@ -1069,20 +1093,21 @@
         ? (seaLevels[spawnTileX] + 1) * TILE_SIZE
         : (LAYER_OFFSET_Y - 1) * TILE_SIZE;
       const isZombie = type === "zombie";
+      const isSkeleton = type === "skeleton";
 
       return {
         kind: type,
         x,
         y: spawnY,
-        w: aquatic ? 24 : isZombie ? 24 : 26,
-        h: aquatic ? 16 : isZombie ? 32 : 22,
+        w: aquatic ? 24 : isZombie ? 24 : isSkeleton ? 24 : 26,
+        h: aquatic ? 16 : isZombie ? 32 : isSkeleton ? 34 : 22,
         vx: 0,
         vy: 0,
-        speed: aquatic ? 70 + Math.random() * 30 : isZombie ? 92 + Math.random() * 16 : 70 + Math.random() * 30,
+        speed: aquatic ? 70 + Math.random() * 30 : isZombie ? 92 + Math.random() * 16 : isSkeleton ? 88 + Math.random() * 14 : 70 + Math.random() * 30,
         direction: Math.random() > 0.5 ? 1 : -1,
         aiTimer: 0.6 + Math.random() * 1.4,
         jumpCooldown: 0.4 + Math.random() * 0.8,
-        jumpPower: isZombie ? 390 : 360 + Math.random() * 70,
+        jumpPower: isZombie ? 390 : isSkeleton ? 380 : 360 + Math.random() * 70,
         onGround: false,
         color: colorMap[type],
         hp: stats.hp,
@@ -1219,6 +1244,12 @@
       interval: 0.7,
       maxZombies: 260
     };
+    const SKELETON_SPAWN = {
+      timer: 0,
+      interval: 0.9,
+      maxSkeletons: 220
+    };
+    const projectiles = [];
     let waterFlowAccumulator = 0;
     let lavaFlowAccumulator = 0;
     let sandFallAccumulator = 0;
@@ -1256,6 +1287,7 @@
     function updatePlayer(dt) {
       const wasOnGround = player.onGround;
       player.hurtTimer = Math.max(0, player.hurtTimer - dt);
+      player.bowCooldown = Math.max(0, player.bowCooldown - dt);
       const inWater = isEntityInWater(player);
       const inLava = isEntityInLava(player);
       const moveLeft = keys.has("KeyA");
@@ -1383,6 +1415,8 @@
         animal.hurtTimer = Math.max(0, animal.hurtTimer - dt);
         if (animal.kind === "zombie") {
           updateZombie(animal, dt);
+        } else if (animal.kind === "skeleton") {
+          updateSkeleton(animal, dt);
         } else if (animal.aquatic) {
           updateAquaticAnimal(animal, dt);
         } else {
@@ -1417,6 +1451,62 @@
           spawnAnimalDrops(animal);
           animals.splice(i, 1);
         }
+      }
+    }
+
+    function updateSkeleton(animal, dt) {
+      if (!isNightTime()) {
+        applyDamage(animal, 2 * dt);
+      }
+      const playerCenterX = player.x + player.w / 2;
+      const playerCenterY = player.y + player.h * 0.35;
+      const skelCenterX = animal.x + animal.w / 2;
+      const skelCenterY = animal.y + animal.h * 0.35;
+      const dx = playerCenterX - skelCenterX;
+      const dy = playerCenterY - skelCenterY;
+      const dist = Math.hypot(dx, dy);
+      const dir = dx >= 0 ? 1 : -1;
+
+      animal.attackCooldown = Math.max(0, animal.attackCooldown - dt);
+      animal.jumpCooldown = Math.max(0, animal.jumpCooldown - dt);
+
+      const desiredMin = 220;
+      const desiredMax = 520;
+      let moveDir = 0;
+      if (dist < desiredMin) {
+        moveDir = -dir;
+      } else if (dist > desiredMax) {
+        moveDir = dir;
+      } else if (Math.random() < 0.02) {
+        moveDir = Math.random() < 0.5 ? -1 : 1;
+      }
+
+      animal.direction = moveDir !== 0 ? Math.sign(moveDir) : animal.direction;
+      animal.vx = moveDir * animal.speed;
+      if (animal.onGround && animal.jumpCooldown <= 0 && shouldAnimalJump(animal)) {
+        animal.vy = -animal.jumpPower;
+        animal.onGround = false;
+        animal.jumpCooldown = 0.7 + Math.random() * 0.6;
+      }
+      const collided = applyPhysicsAndCollisions(animal, dt);
+      if (collided.x) {
+        animal.direction *= -1;
+      }
+
+      if (animal.attackCooldown <= 0 && dist >= 140 && dist <= 720) {
+        const damage = Math.random() < 0.5 ? 3 : 4;
+        shootArrow({
+          from: "skeleton",
+          shooter: animal,
+          shooterKind: "skeleton",
+          x: skelCenterX + dir * 6,
+          y: skelCenterY,
+          tx: playerCenterX,
+          ty: playerCenterY,
+          speed: 540,
+          damage
+        });
+        animal.attackCooldown = 1.1 + Math.random() * 0.6;
       }
     }
 
@@ -1517,6 +1607,115 @@
           continue;
         }
         drop.phase += dt;
+      }
+    }
+
+    function shootArrow({ from, shooter, shooterKind, x, y, tx, ty, speed, damage }) {
+      if (projectiles.length >= 320) {
+        return false;
+      }
+      const dx = tx - x;
+      const dy = ty - y;
+      const dist = Math.hypot(dx, dy) || 1;
+      let dirX = dx / dist;
+      let dirY = dy / dist;
+      if (from === "skeleton") {
+        const spread = 0.08;
+        dirX += (Math.random() * 2 - 1) * spread;
+        dirY += (Math.random() * 2 - 1) * spread;
+        const d2 = Math.hypot(dirX, dirY) || 1;
+        dirX /= d2;
+        dirY /= d2;
+      }
+      projectiles.push({
+        type: "arrow",
+        from,
+        shooter,
+        shooterKind,
+        x,
+        y,
+        vx: dirX * speed,
+        vy: dirY * speed,
+        w: 8,
+        h: 8,
+        damage,
+        life: 6
+      });
+      return true;
+    }
+
+    function updateProjectiles(dt) {
+      const gravity = 720;
+      const maxSpeed = 980;
+
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const p = projectiles[i];
+        p.life -= dt;
+        if (p.life <= 0) {
+          projectiles.splice(i, 1);
+          continue;
+        }
+        p.vy = Math.min(maxSpeed, p.vy + gravity * dt);
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+
+        const tx = Math.floor(p.x / TILE_SIZE);
+        const ty = Math.floor(p.y / TILE_SIZE);
+        if (isSolid(getTile(tx, ty))) {
+          projectiles.splice(i, 1);
+          continue;
+        }
+
+        if (p.shooter !== player && isProjectileHittingEntity(p, player)) {
+          applyDamage(player, p.damage);
+          projectiles.splice(i, 1);
+          continue;
+        }
+
+        for (let j = animals.length - 1; j >= 0; j--) {
+          const a = animals[j];
+          if (a.hp <= 0) continue;
+          if (a === p.shooter) continue;
+          if (Math.abs(a.x + a.w / 2 - p.x) > 120) continue;
+          if (Math.abs(a.y + a.h / 2 - p.y) > 120) continue;
+          if (isProjectileHittingEntity(p, a)) {
+            applyDamage(a, p.damage);
+            projectiles.splice(i, 1);
+            break;
+          }
+        }
+      }
+    }
+
+    function isProjectileHittingEntity(p, e) {
+      const px1 = p.x - p.w / 2;
+      const py1 = p.y - p.h / 2;
+      const px2 = px1 + p.w;
+      const py2 = py1 + p.h;
+      const ex1 = e.x;
+      const ey1 = e.y;
+      const ex2 = e.x + e.w;
+      const ey2 = e.y + e.h;
+      return px1 < ex2 && px2 > ex1 && py1 < ey2 && py2 > ey1;
+    }
+
+    function renderProjectiles() {
+      for (const p of projectiles) {
+        const px = p.x - p.w / 2 - camera.x;
+        const py = p.y - p.h / 2 - camera.y;
+        if (px + p.w < 0 || py + p.h < 0 || px > canvas.width || py > canvas.height) {
+          continue;
+        }
+        const img = getPreferredItemImage(p.type);
+        if (img) {
+          const scaled = getScaledImage(img, p.w);
+          if (scaled) {
+            ctx.drawImage(scaled, px, py, p.w, p.h);
+            continue;
+          }
+        }
+        ctx.fillStyle = DROP_COLORS[p.type] || "#ffffff";
+        ctx.fillRect(px, py, p.w, p.h);
       }
     }
 
@@ -1715,10 +1914,36 @@
       spawnZombieNearPlayer();
     }
 
+    function updateSkeletonSpawning(dt) {
+      if (!isNightTime()) {
+        SKELETON_SPAWN.timer = 0;
+        return;
+      }
+      SKELETON_SPAWN.timer -= dt;
+      if (SKELETON_SPAWN.timer > 0) {
+        return;
+      }
+      SKELETON_SPAWN.timer = SKELETON_SPAWN.interval;
+      if (countSkeletons() >= SKELETON_SPAWN.maxSkeletons) {
+        return;
+      }
+      spawnSkeletonNearPlayer();
+    }
+
     function countZombies() {
       let count = 0;
       for (const animal of animals) {
         if (animal.kind === "zombie") {
+          count += 1;
+        }
+      }
+      return count;
+    }
+
+    function countSkeletons() {
+      let count = 0;
+      for (const animal of animals) {
+        if (animal.kind === "skeleton") {
           count += 1;
         }
       }
@@ -1747,6 +1972,28 @@
       return false;
     }
 
+    function spawnSkeletonNearPlayer() {
+      const playerTileX = clamp(Math.floor((player.x + player.w / 2) / TILE_SIZE), 0, WORLD_WIDTH - 1);
+      for (let i = 0; i < 80; i++) {
+        const sign = Math.random() < 0.5 ? -1 : 1;
+        const offset = 14 + Math.floor(Math.random() * 42);
+        const x = clamp(playerTileX + sign * offset, 0, WORLD_WIDTH - 1);
+        if (biomeTypes[x] === "sea") {
+          continue;
+        }
+        const surfaceY = surfaceHeights[x];
+        const spawnTileY = surfaceY - 1;
+        if (spawnTileY < 1 || getTile(x, spawnTileY) !== TILE.AIR) {
+          continue;
+        }
+        const skel = createAnimal("skeleton", x * TILE_SIZE);
+        skel.y = surfaceY * TILE_SIZE - skel.h;
+        animals.push(skel);
+        return true;
+      }
+      return false;
+    }
+
     function handleMouseAction(event) {
       if (inventoryOpen) {
         handleInventoryClick(event);
@@ -1761,11 +2008,44 @@
         return;
       }
       if (event.button === 2) {
+        if (tryShootBow(pointer.worldX, pointer.worldY)) {
+          return;
+        }
         if (tryConsumeSelectedFood()) {
           return;
         }
         tryPlaceSelectedBlock(pointer.worldX, pointer.worldY);
       }
+    }
+
+    function tryShootBow(targetX, targetY) {
+      const selectedType = hotbarSlots[selectedHotbarIndex];
+      if (selectedType !== "bow") {
+        return false;
+      }
+      if (player.bowCooldown > 0) {
+        return true;
+      }
+      if (gameMode === "survival") {
+        if (!removeFromInventory("arrow", 1)) {
+          return true;
+        }
+      }
+      const fromX = player.x + player.w / 2 + (player.vx >= 0 ? 6 : -6);
+      const fromY = player.y + player.h * 0.35;
+      shootArrow({
+        from: "player",
+        shooter: player,
+        shooterKind: "player",
+        x: fromX,
+        y: fromY,
+        tx: targetX,
+        ty: targetY,
+        speed: 740,
+        damage: 4
+      });
+      player.bowCooldown = 0.28;
+      return true;
     }
 
     function tryConsumeSelectedFood() {
@@ -2069,6 +2349,7 @@
       renderSun();
       renderClouds();
       renderWorld();
+      renderProjectiles();
       renderDrops();
       renderEntity(player);
       for (const animal of animals) {
@@ -2413,7 +2694,10 @@
         leather: "皮革",
         fish_meat: "鱼肉",
         ink_sac: "墨囊",
-        rotten_flesh: "腐肉"
+        rotten_flesh: "腐肉",
+        bone: "骨头",
+        bow: "弓",
+        arrow: "箭"
       };
       return names[type] || type;
     }
@@ -2436,8 +2720,10 @@
         updateAnimals(dt);
         updateAnimalSpawning(dt);
         updateZombieSpawning(dt);
+        updateSkeletonSpawning(dt);
         updateClouds(dt);
         updateDrops(dt);
+        updateProjectiles(dt);
         updateWaterFlow(dt);
         updateLavaFlow(dt);
         resolveFluidReactions();
