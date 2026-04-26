@@ -195,6 +195,8 @@
       bone: "#e8e6d6",
       bow: "#b67a3c",
       arrow: "#cfcfcf",
+      string: "#f2f2f2",
+      spider_eye: "#b63b3b",
       wood_plank: "#c58a43",
       crafting_table: "#7d5231"
     };
@@ -250,6 +252,8 @@
       bone: "generated:item:bone",
       bow: "generated:item:bow",
       arrow: "generated:item:arrow",
+      string: "generated:item:string",
+      spider_eye: "generated:item:spider_eye",
       wood_plank: "assets/textures/tiles/planks.png",
       crafting_table: "generated:tile:crafting_table"
     };
@@ -265,6 +269,8 @@
       bone: `${VANILLA_TEXTURE_BASE}/item/bone.png`,
       bow: `${VANILLA_TEXTURE_BASE}/item/bow.png`,
       arrow: `${VANILLA_TEXTURE_BASE}/item/arrow.png`,
+      string: `${VANILLA_TEXTURE_BASE}/item/string.png`,
+      spider_eye: `${VANILLA_TEXTURE_BASE}/item/spider_eye.png`,
       wool: `${VANILLA_TEXTURE_BASE}/block/white_wool.png`,
       wood_plank: `${VANILLA_TEXTURE_BASE}/block/oak_planks.png`,
       crafting_table: `${VANILLA_TEXTURE_BASE}/block/crafting_table_side.png`
@@ -277,6 +283,7 @@
       sheep: `${VANILLA_TEXTURE_BASE}/entity/sheep/sheep.png`,
       zombie: `${VANILLA_TEXTURE_BASE}/entity/zombie/zombie.png`,
       skeleton: `${VANILLA_TEXTURE_BASE}/entity/skeleton/skeleton.png`,
+      spider: `${VANILLA_TEXTURE_BASE}/entity/spider/spider.png`,
       chicken: `${VANILLA_TEXTURE_BASE}/entity/chicken.png`,
       squid: `${VANILLA_TEXTURE_BASE}/entity/squid/squid.png`,
       fish: `${VANILLA_TEXTURE_BASE}/entity/fish/cod.png`
@@ -569,6 +576,17 @@
         px(9, 3, 1, 1, "#111111");
         px(7, 8, 2, 1, "#a7a49a");
         px(7, 10, 2, 1, "#a7a49a");
+      } else if (type === "spider") {
+        px(2, 8, 12, 5, "#1f1f22");
+        px(4, 6, 8, 3, "#2a2a2e");
+        px(5, 7, 1, 1, "#b63b3b");
+        px(10, 7, 1, 1, "#b63b3b");
+        px(1, 6, 2, 1, "#1f1f22");
+        px(13, 6, 2, 1, "#1f1f22");
+        px(0, 8, 2, 1, "#1f1f22");
+        px(14, 8, 2, 1, "#1f1f22");
+        px(1, 11, 2, 1, "#1f1f22");
+        px(13, 11, 2, 1, "#1f1f22");
       } else if (type === "chicken") {
         px(4, 6, 8, 7, "#ffffff");
         px(6, 4, 4, 2, "#ffffff");
@@ -607,7 +625,8 @@
       fish: { hp: 4, drops: ["fish_meat"] },
       squid: { hp: 4, drops: ["ink_sac"] },
       zombie: { hp: 20, drops: ["rotten_flesh", "rotten_flesh"] },
-      skeleton: { hp: 20, drops: ["bone", "bow", "arrow", "arrow"] }
+      skeleton: { hp: 20, drops: ["bone", "bow", "arrow", "arrow"] },
+      spider: { hp: 16, drops: [] }
     };
 
     const BLOCK_BREAK_DROP_MAP = {
@@ -1084,7 +1103,8 @@
         fish: "#ff9f43",
         squid: "#b388ff",
         zombie: "#5e9e4a",
-        skeleton: "#d9d6c6"
+        skeleton: "#d9d6c6",
+        spider: "#2a2a2e"
       };
       const stats = ANIMAL_STATS[type];
       const aquatic = SEA_ANIMAL_TYPES.includes(type);
@@ -1094,20 +1114,21 @@
         : (LAYER_OFFSET_Y - 1) * TILE_SIZE;
       const isZombie = type === "zombie";
       const isSkeleton = type === "skeleton";
+      const isSpider = type === "spider";
 
       return {
         kind: type,
         x,
         y: spawnY,
-        w: aquatic ? 24 : isZombie ? 24 : isSkeleton ? 24 : 26,
-        h: aquatic ? 16 : isZombie ? 32 : isSkeleton ? 34 : 22,
+        w: aquatic ? 24 : isZombie ? 24 : isSkeleton ? 24 : isSpider ? 38 : 26,
+        h: aquatic ? 16 : isZombie ? 32 : isSkeleton ? 34 : isSpider ? 22 : 22,
         vx: 0,
         vy: 0,
-        speed: aquatic ? 70 + Math.random() * 30 : isZombie ? 92 + Math.random() * 16 : isSkeleton ? 88 + Math.random() * 14 : 70 + Math.random() * 30,
+        speed: aquatic ? 70 + Math.random() * 30 : isZombie ? 92 + Math.random() * 16 : isSkeleton ? 88 + Math.random() * 14 : isSpider ? 112 + Math.random() * 18 : 70 + Math.random() * 30,
         direction: Math.random() > 0.5 ? 1 : -1,
         aiTimer: 0.6 + Math.random() * 1.4,
         jumpCooldown: 0.4 + Math.random() * 0.8,
-        jumpPower: isZombie ? 390 : isSkeleton ? 380 : 360 + Math.random() * 70,
+        jumpPower: isZombie ? 390 : isSkeleton ? 380 : isSpider ? 360 : 360 + Math.random() * 70,
         onGround: false,
         color: colorMap[type],
         hp: stats.hp,
@@ -1248,6 +1269,11 @@
       timer: 0,
       interval: 0.9,
       maxSkeletons: 220
+    };
+    const SPIDER_SPAWN = {
+      timer: 0,
+      interval: 0.8,
+      maxSpiders: 220
     };
     const projectiles = [];
     let waterFlowAccumulator = 0;
@@ -1417,6 +1443,8 @@
           updateZombie(animal, dt);
         } else if (animal.kind === "skeleton") {
           updateSkeleton(animal, dt);
+        } else if (animal.kind === "spider") {
+          updateSpider(animal, dt);
         } else if (animal.aquatic) {
           updateAquaticAnimal(animal, dt);
         } else {
@@ -1534,6 +1562,50 @@
       if (overlapX && overlapY && animal.attackCooldown <= 0) {
         applyDamage(player, 3);
         animal.attackCooldown = 1;
+      }
+    }
+
+    function isSpiderTouchingWall(animal, dir) {
+      const sideTileX = dir > 0 ? Math.floor((animal.x + animal.w) / TILE_SIZE) : Math.floor((animal.x - 1) / TILE_SIZE);
+      const yTop = animal.y + animal.h * 0.25;
+      const yBottom = animal.y + animal.h * 0.85;
+      const topTy = Math.floor(yTop / TILE_SIZE);
+      const bottomTy = Math.floor(yBottom / TILE_SIZE);
+      for (let ty = topTy; ty <= bottomTy; ty++) {
+        if (isSolid(getTile(sideTileX, ty))) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function updateSpider(animal, dt) {
+      const playerCenterX = player.x + player.w / 2;
+      const spiderCenterX = animal.x + animal.w / 2;
+      const dx = playerCenterX - spiderCenterX;
+      animal.attackCooldown = Math.max(0, animal.attackCooldown - dt);
+      animal.jumpCooldown = Math.max(0, animal.jumpCooldown - dt);
+      animal.direction = dx >= 0 ? 1 : -1;
+      animal.vx = animal.direction * animal.speed;
+      if (animal.onGround && animal.jumpCooldown <= 0 && shouldAnimalJump(animal)) {
+        animal.vy = -animal.jumpPower;
+        animal.onGround = false;
+        animal.jumpCooldown = 0.5 + Math.random() * 0.4;
+      }
+      if (isSpiderTouchingWall(animal, animal.direction)) {
+        animal.vy = Math.min(animal.vy, -420);
+      }
+
+      const collided = applyPhysicsAndCollisions(animal, dt);
+      if (collided.x) {
+        animal.direction *= -1;
+      }
+
+      const overlapX = player.x < animal.x + animal.w && player.x + player.w > animal.x;
+      const overlapY = player.y < animal.y + animal.h && player.y + player.h > animal.y;
+      if (overlapX && overlapY && animal.attackCooldown <= 0) {
+        applyDamage(player, 3);
+        animal.attackCooldown = 0.85;
       }
     }
 
@@ -1930,6 +2002,22 @@
       spawnSkeletonNearPlayer();
     }
 
+    function updateSpiderSpawning(dt) {
+      if (!isNightTime()) {
+        SPIDER_SPAWN.timer = 0;
+        return;
+      }
+      SPIDER_SPAWN.timer -= dt;
+      if (SPIDER_SPAWN.timer > 0) {
+        return;
+      }
+      SPIDER_SPAWN.timer = SPIDER_SPAWN.interval;
+      if (countSpiders() >= SPIDER_SPAWN.maxSpiders) {
+        return;
+      }
+      spawnSpiderNearPlayer();
+    }
+
     function countZombies() {
       let count = 0;
       for (const animal of animals) {
@@ -1944,6 +2032,16 @@
       let count = 0;
       for (const animal of animals) {
         if (animal.kind === "skeleton") {
+          count += 1;
+        }
+      }
+      return count;
+    }
+
+    function countSpiders() {
+      let count = 0;
+      for (const animal of animals) {
+        if (animal.kind === "spider") {
           count += 1;
         }
       }
@@ -1989,6 +2087,28 @@
         const skel = createAnimal("skeleton", x * TILE_SIZE);
         skel.y = surfaceY * TILE_SIZE - skel.h;
         animals.push(skel);
+        return true;
+      }
+      return false;
+    }
+
+    function spawnSpiderNearPlayer() {
+      const playerTileX = clamp(Math.floor((player.x + player.w / 2) / TILE_SIZE), 0, WORLD_WIDTH - 1);
+      for (let i = 0; i < 90; i++) {
+        const sign = Math.random() < 0.5 ? -1 : 1;
+        const offset = 10 + Math.floor(Math.random() * 40);
+        const x = clamp(playerTileX + sign * offset, 0, WORLD_WIDTH - 1);
+        if (biomeTypes[x] === "sea") {
+          continue;
+        }
+        const surfaceY = surfaceHeights[x];
+        const spawnTileY = surfaceY - 1;
+        if (spawnTileY < 1 || getTile(x, spawnTileY) !== TILE.AIR) {
+          continue;
+        }
+        const spider = createAnimal("spider", x * TILE_SIZE);
+        spider.y = surfaceY * TILE_SIZE - spider.h;
+        animals.push(spider);
         return true;
       }
       return false;
@@ -2101,6 +2221,18 @@
     }
 
     function spawnAnimalDrops(animal) {
+      if (animal.kind === "spider") {
+        const cx = animal.x + animal.w / 2;
+        const cy = animal.y + animal.h / 2;
+        const stringCount = 1 + Math.floor(Math.random() * 2);
+        for (let i = 0; i < stringCount; i++) {
+          spawnDrop("string", cx, cy);
+        }
+        if (Math.random() < 0.35) {
+          spawnDrop("spider_eye", cx, cy);
+        }
+        return;
+      }
       const stats = ANIMAL_STATS[animal.kind];
       for (const itemType of stats.drops) {
         spawnDrop(itemType, animal.x + animal.w / 2, animal.y + animal.h / 2);
@@ -2697,7 +2829,9 @@
         rotten_flesh: "腐肉",
         bone: "骨头",
         bow: "弓",
-        arrow: "箭"
+        arrow: "箭",
+        string: "蜘蛛丝",
+        spider_eye: "蜘蛛眼"
       };
       return names[type] || type;
     }
@@ -2721,6 +2855,7 @@
         updateAnimalSpawning(dt);
         updateZombieSpawning(dt);
         updateSkeletonSpawning(dt);
+        updateSpiderSpawning(dt);
         updateClouds(dt);
         updateDrops(dt);
         updateProjectiles(dt);

@@ -20,7 +20,7 @@
 - 矿物生成：煤、铁、金、钻石按概率生成
 - 树木生成：多棵树随机生成（含树干和树叶）
 - 玩家系统：移动、跳跃、重力、碰撞、摄像机跟随
-- 生物系统：猪/牛/羊/鸡/鱼/乌贼 + 怪物（僵尸/骷髅）高密度刷新
+- 生物系统：猪/牛/羊/鸡/鱼/乌贼 + 怪物（僵尸/骷髅/蜘蛛）高密度刷新
 - 战斗系统：近战（僵尸）+ 远程投射物（弓箭），支持“箭互伤”（怪物也能误伤怪物）
 - 掉落系统：击杀/击中掉落物，靠近自动拾取并进背包
 - 方块交互：单点破坏、单点放置（放置以快捷栏所选方块为准）
@@ -70,10 +70,10 @@
 - 生物种类：
   - 陆地：`pig / cow / sheep / chicken`
   - 海洋：`fish / squid`
-  - 怪物：`zombie / skeleton`
+  - 怪物：`zombie / skeleton / spider`
 - 共同点：随机/追踪移动，受重力影响，碰撞后会掉头
 - 条件跳跃：**仅在“坑里”或“台阶前”触发跳跃**
-- 昼夜机制：夜晚刷怪更活跃；僵尸与骷髅在白天会持续掉血
+- 昼夜机制：夜晚刷怪更活跃；僵尸与骷髅在白天会持续掉血；蜘蛛夜晚刷新且可爬墙追击玩家
 
 ### 4) 血量与伤害
 
@@ -81,6 +81,7 @@
 - 动物卡在方块内：每秒掉 `5` 点
 - 玩家卡在方块内：每秒掉 `4` 点
 - 僵尸/骷髅白天：每秒掉 `2` 点
+- 蜘蛛：`16` 血，近战攻击 `3` 点，击杀掉落蜘蛛丝与蜘蛛眼
 - 玩家跌落伤害：
   - 跌落高度达到 `3` 格时扣 `1` 点
   - 每多 `1` 格，再多扣 `1` 点
@@ -198,9 +199,10 @@ Minecraft-2D/
 - 物品（item）：
   - `rotten_flesh.png`, `beef.png`, `porkchop.png`, `mutton.png`, `leather.png`, `ink_sac.png`, `cod.png`
   - `bone.png`, `bow.png`, `arrow.png`
+  - `string.png`, `spider_eye.png`
 - 生物（entity）（按原版目录拷贝）：
   - `pig/pig.png`, `cow/cow.png`, `sheep/sheep.png`, `chicken/chicken.png`
-  - `zombie/zombie.png`, `skeleton/skeleton.png`
+  - `zombie/zombie.png`, `skeleton/skeleton.png`, `spider/spider.png`
   - `squid/squid.png`, `fish/cod.png`
 
 提示：`assets/vanilla/` 已被 `.gitignore` 忽略，避免把原版贴图误提交到仓库。
