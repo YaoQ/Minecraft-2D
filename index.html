@@ -141,8 +141,10 @@
   <script>
     const TILE_SIZE = 32;
     const WORLD_WIDTH = 3000;
-    const WORLD_HEIGHT = 180;
-    const LAYER_OFFSET_Y = 10;
+    const BASE_WORLD_HEIGHT = 180;
+    const WORLD_HEIGHT = 262;
+    const SKY_OFFSET = WORLD_HEIGHT - BASE_WORLD_HEIGHT;
+    const LAYER_OFFSET_Y = 10 + SKY_OFFSET;
 
     const TILE = {
       AIR: "air",
