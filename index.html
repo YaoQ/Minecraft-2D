@@ -1088,6 +1088,10 @@
         airbornePeakY: PLAYER_SPAWN.y,
         lastDamagedAt: 0,
         bowCooldown: 0,
+        isBowCharging: false,
+        bowChargeStartMs: 0,
+        bowChargeTargetX: PLAYER_SPAWN.x,
+        bowChargeTargetY: PLAYER_SPAWN.y,
         hurtTimer: 0,
         onGround: false,
         color: "#2d7ff9"
@@ -1291,6 +1295,9 @@
       }
       if (e.code === "KeyE" && !e.repeat) {
         inventoryOpen = !inventoryOpen;
+        if (inventoryOpen) {
+          player.isBowCharging = false;
+        }
       }
       if (/^Digit[1-9]$/.test(e.code)) {
         selectedHotbarIndex = Number(e.code.slice(5)) - 1;
@@ -1308,6 +1315,22 @@
 
     canvas.addEventListener("mousedown", (e) => {
       handleMouseAction(e);
+    });
+
+    canvas.addEventListener("mousemove", (e) => {
+      if (!player.isBowCharging) {
+        return;
+      }
+      const pointer = screenToWorld(e);
+      player.bowChargeTargetX = pointer.worldX;
+      player.bowChargeTargetY = pointer.worldY;
+    });
+
+    window.addEventListener("mouseup", (e) => {
+      if (e.button !== 2) {
+        return;
+      }
+      releaseBowCharge(performance.now());
     });
 
     function updatePlayer(dt) {
@@ -2128,7 +2151,7 @@
         return;
       }
       if (event.button === 2) {
-        if (tryShootBow(pointer.worldX, pointer.worldY)) {
+        if (beginBowCharge(pointer.worldX, pointer.worldY, performance.now())) {
           return;
         }
         if (tryConsumeSelectedFood()) {
@@ -2138,11 +2161,26 @@
       }
     }
 
-    function tryShootBow(targetX, targetY) {
+    function beginBowCharge(targetX, targetY, nowMs) {
       const selectedType = hotbarSlots[selectedHotbarIndex];
       if (selectedType !== "bow") {
         return false;
       }
+      if (player.bowCooldown > 0) {
+        return true;
+      }
+      player.isBowCharging = true;
+      player.bowChargeStartMs = nowMs;
+      player.bowChargeTargetX = targetX;
+      player.bowChargeTargetY = targetY;
+      return true;
+    }
+
+    function releaseBowCharge(nowMs) {
+      if (!player.isBowCharging) {
+        return false;
+      }
+      player.isBowCharging = false;
       if (player.bowCooldown > 0) {
         return true;
       }
@@ -2151,6 +2189,8 @@
           return true;
         }
       }
+      const holdSec = Math.max(0, (nowMs - player.bowChargeStartMs) / 1000);
+      const damage = 4 + Math.floor(holdSec / 0.3);
       const fromX = player.x + player.w / 2 + (player.vx >= 0 ? 6 : -6);
       const fromY = player.y + player.h * 0.35;
       shootArrow({
@@ -2159,12 +2199,12 @@
         shooterKind: "player",
         x: fromX,
         y: fromY,
-        tx: targetX,
-        ty: targetY,
+        tx: player.bowChargeTargetX,
+        ty: player.bowChargeTargetY,
         speed: 740,
-        damage: 4
+        damage
       });
-      player.bowCooldown = 0.28;
+      player.bowCooldown = 0.18;
       return true;
     }
 
