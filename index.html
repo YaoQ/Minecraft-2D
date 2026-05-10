@@ -700,7 +700,7 @@
     let isDead = false;
     const DAY_NIGHT_CYCLE = 25 * 60;
     const NIGHT_START = 20 * 60;
-    const PLAYER_SPAWN = {
+    let PLAYER_SPAWN = {
       x: 12 * TILE_SIZE,
       y: (LAYER_OFFSET_Y - 2) * TILE_SIZE
     };
@@ -816,30 +816,97 @@
       return world;
     }
 
+    function isSpawnAir(world, tx, ty) {
+      if (!inWorld(tx, ty)) {
+        return false;
+      }
+      return world[ty][tx] === TILE.AIR;
+    }
+
+    function isSpawnColumnSafe(world, tx) {
+      if (tx < 2 || tx > WORLD_WIDTH - 3) {
+        return false;
+      }
+      if (biomeTypes[tx] === "sea") {
+        return false;
+      }
+      const surfaceY = surfaceHeights[tx];
+      if (!Number.isFinite(surfaceY) || surfaceY < 4 || surfaceY >= WORLD_HEIGHT - 2) {
+        return false;
+      }
+      const ground = world[surfaceY]?.[tx];
+      if (!ground || ground === TILE.AIR || ground === TILE.WATER || ground === TILE.LAVA || ground === TILE.VOID) {
+        return false;
+      }
+      if (!isSpawnAir(world, tx, surfaceY - 1) || !isSpawnAir(world, tx, surfaceY - 2) || !isSpawnAir(world, tx, surfaceY - 3)) {
+        return false;
+      }
+      const below = world[surfaceY + 1]?.[tx];
+      if (!below || below === TILE.AIR || below === TILE.WATER || below === TILE.LAVA || below === TILE.VOID) {
+        return false;
+      }
+      return true;
+    }
+
+    function setPlayerSpawn(world) {
+      const preferredTileX = clamp(Math.floor(PLAYER_SPAWN.x / TILE_SIZE), 2, WORLD_WIDTH - 3);
+      let chosenTileX = -1;
+      const maxRadius = 1400;
+      for (let r = 0; r <= maxRadius; r++) {
+        const left = preferredTileX - r;
+        if (left >= 2 && isSpawnColumnSafe(world, left)) {
+          chosenTileX = left;
+          break;
+        }
+        const right = preferredTileX + r;
+        if (right <= WORLD_WIDTH - 3 && isSpawnColumnSafe(world, right)) {
+          chosenTileX = right;
+          break;
+        }
+      }
+      if (chosenTileX === -1) {
+        for (let i = 0; i < 600; i++) {
+          const tx = 2 + Math.floor(Math.random() * (WORLD_WIDTH - 4));
+          if (isSpawnColumnSafe(world, tx)) {
+            chosenTileX = tx;
+            break;
+          }
+        }
+      }
+      if (chosenTileX === -1) {
+        const tx = preferredTileX;
+        const fallbackSurfaceY = clamp(surfaceHeights[tx] ?? (LAYER_OFFSET_Y - 1), 4, WORLD_HEIGHT - 4);
+        PLAYER_SPAWN = { x: tx * TILE_SIZE, y: fallbackSurfaceY * TILE_SIZE - 44 };
+        return;
+      }
+      const surfaceY = surfaceHeights[chosenTileX];
+      PLAYER_SPAWN = { x: chosenTileX * TILE_SIZE, y: surfaceY * TILE_SIZE - 44 };
+    }
+
     function getColumnTerrain(x) {
       const segmentIndex = Math.floor(x / 200);
       const biome = getSegmentBiome(segmentIndex);
       const localX = x % 200;
       const t = localX / 200;
-      const seaLevel = 22;
-      let base = 14;
+      const seaLevel = 22 + SKY_OFFSET;
+      let base = 14 + SKY_OFFSET;
       let amp = 3;
       if (biome === "high_mountain_forest") {
-        base = 10;
+        base = 10 + SKY_OFFSET;
         amp = 11;
       } else if (biome === "forest") {
-        base = 14;
+        base = 14 + SKY_OFFSET;
         amp = 4;
       } else if (biome === "beach") {
-        base = 14;
+        base = 14 + SKY_OFFSET;
         amp = 4;
       } else if (biome === "sea") {
-        base = 30;
+        base = 30 + SKY_OFFSET;
         amp = 2;
       }
       const wave = Math.sin(t * Math.PI * 2) * amp;
       const noise = (Math.random() - 0.5) * (biome === "sea" ? 1.2 : 2.4);
-      const surfaceY = clamp(Math.round(base + wave + noise), 7, 42);
+      const surfaceY = clamp(Math.round(base + wave + noise), 7 + SKY_OFFSET, 42 + SKY_OFFSET);
       return { biome, surfaceY, seaLevel };
     }
 
@@ -1115,19 +1182,22 @@
       const stats = ANIMAL_STATS[type];
       const aquatic = SEA_ANIMAL_TYPES.includes(type);
       const spawnTileX = clamp(Math.floor(x / TILE_SIZE), 0, WORLD_WIDTH - 1);
-      const spawnY = aquatic
-        ? (seaLevels[spawnTileX] + 1) * TILE_SIZE
-        : (LAYER_OFFSET_Y - 1) * TILE_SIZE;
       const isZombie = type === "zombie";
       const isSkeleton = type === "skeleton";
       const isSpider = type === "spider";
+      const w = aquatic ? 24 : isZombie ? 24 : isSkeleton ? 24 : isSpider ? 38 : 26;
+      const h = aquatic ? 16 : isZombie ? 32 : isSkeleton ? 34 : isSpider ? 22 : 22;
+      const surfaceY = surfaceHeights[spawnTileX] ?? (LAYER_OFFSET_Y - 1);
+      const spawnY = aquatic
+        ? (seaLevels[spawnTileX] + 1) * TILE_SIZE
+        : surfaceY * TILE_SIZE - h;
 
       return {
         kind: type,
         x,
         y: spawnY,
-        w: aquatic ? 24 : isZombie ? 24 : isSkeleton ? 24 : isSpider ? 38 : 26,
-        h: aquatic ? 16 : isZombie ? 32 : isSkeleton ? 34 : isSpider ? 22 : 22,
+        w,
+        h,
         vx: 0,
         vy: 0,
         speed: aquatic ? 70 + Math.random() * 30 : isZombie ? 92 + Math.random() * 16 : isSkeleton ? 88 + Math.random() * 14 : isSpider ? 112 + Math.random() * 18 : 70 + Math.random() * 30,
@@ -1247,6 +1317,7 @@
     }
 
     const world = createWorld();
+    setPlayerSpawn(world);
     const player = createPlayer();
     const animals = spawnAnimals();
     const drops = [];
