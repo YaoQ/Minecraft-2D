@@ -1766,6 +1766,48 @@
 
       for (let i = drops.length - 1; i >= 0; i--) {
         const drop = drops[i];
+
+        if (drop.y > worldPixelHeight + TILE_SIZE * 10) {
+          drops.splice(i, 1);
+          continue;
+        }
+
+        const centerTx = Math.floor((drop.x + drop.w / 2) / TILE_SIZE);
+        const centerTy = Math.floor((drop.y + drop.h / 2) / TILE_SIZE);
+        const centerTile = getTile(centerTx, centerTy);
+        if (centerTile === TILE.WATER) {
+          drop.vy = Math.max(drop.vy - 1800 * dt, -220);
+          drop.onGround = false;
+        } else {
+          drop.vy = Math.min(drop.vy + PHYSICS.gravity * dt, PHYSICS.maxFallSpeed);
+        }
+
+        if (drop.vx !== 0) {
+          drop.x += drop.vx * dt;
+          resolveHorizontalCollisions(drop);
+        }
+
+        if (drop.vy !== 0) {
+          drop.y += drop.vy * dt;
+          drop.onGround = false;
+          const hitY = resolveVerticalCollisions(drop);
+          if (hitY && drop.vy >= 0) {
+            drop.onGround = true;
+          }
+        } else {
+          const footTy = Math.floor((drop.y + drop.h + 0.5) / TILE_SIZE);
+          const footL = Math.floor(drop.x / TILE_SIZE);
+          const footR = Math.floor((drop.x + drop.w - 1) / TILE_SIZE);
+          let onGround = false;
+          for (let tx = footL; tx <= footR; tx++) {
+            if (isSolid(getTile(tx, footTy))) {
+              onGround = true;
+              break;
+            }
+          }
+          drop.onGround = onGround;
+        }
+
         const dx = playerCenterX - drop.x;
         const dy = playerCenterY - drop.y;
         const distSq = dx * dx + dy * dy;
@@ -2481,7 +2523,10 @@
         y,
         w: 12,
         h: 12,
-        phase: Math.random() * Math.PI * 2
+        phase: Math.random() * Math.PI * 2,
+        vx: 0,
+        vy: 0,
+        onGround: false
       });
     }
 
