@@ -1222,6 +1222,7 @@
         h,
         vx: 0,
         vy: 0,
+        airbornePeakY: spawnY,
         speed: aquatic ? 70 + Math.random() * 30 : isZombie ? 92 + Math.random() * 16 : isSkeleton ? 88 + Math.random() * 14 : isSpider ? 112 + Math.random() * 18 : 70 + Math.random() * 30,
         direction: Math.random() > 0.5 ? 1 : -1,
         aiTimer: 0.6 + Math.random() * 1.4,
@@ -1483,22 +1484,28 @@
       if (wasOnGround && !player.onGround) {
         player.airbornePeakY = player.y;
       }
-
-      if (!player.onGround && player.y < player.airbornePeakY) {
-        player.airbornePeakY = player.y;
-      }
-
-      if (!wasOnGround && player.onGround) {
-        const fallPixels = player.y - player.airbornePeakY;
-        const fallBlocks = Math.floor(fallPixels / TILE_SIZE);
-        const damage = Math.max(0, fallBlocks - 2);
-        if (damage > 0) {
-          applyDamage(player, damage);
-        }
-      }
-
+      applyFallDamage(player, wasOnGround, { thresholdBlocks: 2 });
       if (player.onGround) {
         player.airbornePeakY = player.y;
+      }
+    }
+
+    function applyFallDamage(entity, wasOnGround, options) {
+      if (!entity) return;
+      const opts = options || {};
+      const thresholdBlocks = (typeof opts.thresholdBlocks === "number") ? opts.thresholdBlocks : 2;
+      if (typeof entity.airbornePeakY !== "number") {
+        entity.airbornePeakY = entity.y;
+      }
+      if (!entity.onGround && entity.y < entity.airbornePeakY) {
+        entity.airbornePeakY = entity.y;
+      }
+      const isLanded = wasOnGround === false && entity.onGround === true;
+      if (isLanded) {
+        const fallPx = Math.max(0, entity.y - entity.airbornePeakY);
+        const fallBlocks = Math.floor(fallPx / TILE_SIZE);
+        const damage = Math.max(0, fallBlocks - thresholdBlocks);
+        if (damage > 0) applyDamage(entity, damage);
       }
     }
 
@@ -1557,6 +1564,7 @@
       for (let i = animals.length - 1; i >= 0; i--) {
         const animal = animals[i];
         animal.hurtTimer = Math.max(0, animal.hurtTimer - dt);
+        const wasOnGround = animal.onGround;
         if (animal.kind === "zombie") {
           updateZombie(animal, dt);
         } else if (animal.kind === "skeleton") {
@@ -1584,6 +1592,10 @@
           if (collided.x) {
             animal.direction *= -1;
           }
+        }
+
+        if (!animal.aquatic) {
+          applyFallDamage(animal, wasOnGround, { thresholdBlocks: 2 });
         }
 
         if (isEntityInLava(animal)) {
