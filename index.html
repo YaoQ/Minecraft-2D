@@ -216,7 +216,7 @@
       [TILE.WOOD]: "assets/textures/tiles/log.png",
       [TILE.LEAF]: "assets/textures/tiles/leaves.png",
       [TILE.WOOD_PLANK]: "assets/textures/tiles/planks.png",
-      [TILE.CRAFTING_TABLE]: "generated:tile:crafting_table",
+      [TILE.CRAFTING_TABLE]: "generated:item:crafting_table",
       [TILE.SAND]: "assets/textures/tiles/sand.png",
       [TILE.WATER]: "assets/textures/tiles/water.png",
       [TILE.LAVA]: "assets/textures/tiles/lava.png"
@@ -235,7 +235,7 @@
       [TILE.WOOD]: `${VANILLA_TEXTURE_BASE}/block/oak_log.png`,
       [TILE.LEAF]: `${VANILLA_TEXTURE_BASE}/block/oak_leaves.png`,
       [TILE.WOOD_PLANK]: `${VANILLA_TEXTURE_BASE}/block/oak_planks.png`,
-      [TILE.CRAFTING_TABLE]: `${VANILLA_TEXTURE_BASE}/block/crafting_table_side.png`,
+      [TILE.CRAFTING_TABLE]: `${VANILLA_TEXTURE_BASE}/item/crafting_table.png`,
       [TILE.SAND]: `${VANILLA_TEXTURE_BASE}/block/sand.png`,
       [TILE.WATER]: `${VANILLA_TEXTURE_BASE}/block/water_still.png`,
       [TILE.LAVA]: `${VANILLA_TEXTURE_BASE}/block/lava_still.png`
@@ -257,7 +257,7 @@
       string: "generated:item:string",
       spider_eye: "generated:item:spider_eye",
       wood_plank: "assets/textures/tiles/planks.png",
-      crafting_table: "generated:tile:crafting_table"
+      crafting_table: "generated:item:crafting_table"
     };
 
     const VANILLA_ITEM_TEXTURE_PATHS = {
@@ -275,7 +275,7 @@
       spider_eye: `${VANILLA_TEXTURE_BASE}/item/spider_eye.png`,
       wool: `${VANILLA_TEXTURE_BASE}/block/white_wool.png`,
       wood_plank: `${VANILLA_TEXTURE_BASE}/block/oak_planks.png`,
-      crafting_table: `${VANILLA_TEXTURE_BASE}/block/crafting_table_side.png`
+      crafting_table: `${VANILLA_TEXTURE_BASE}/item/crafting_table.png`
     };
 
     const VANILLA_ENTITY_TEXTURE_PATHS = {
@@ -460,6 +460,28 @@
       }
 
       if (domain === "item") {
+        if (id === "crafting_table") {
+          const planks = loadedImages.get("assets/textures/tiles/planks.png");
+          if (planks) {
+            const plankTile = getScaledImage(planks, 16);
+            if (plankTile) {
+              g.drawImage(plankTile, 1, 1, 14, 14);
+            }
+          } else {
+            px(1, 1, 14, 14, "#c58a43");
+          }
+          g.strokeStyle = "rgba(0,0,0,0.45)";
+          g.lineWidth = 1;
+          g.strokeRect(1.5, 1.5, 13, 13);
+          g.strokeStyle = "rgba(0,0,0,0.55)";
+          g.strokeRect(4.5, 4.5, 7, 7);
+          g.strokeStyle = "rgba(120,80,40,0.7)";
+          g.beginPath();
+          g.moveTo(5, 5); g.lineTo(10, 10);
+          g.moveTo(11, 5); g.lineTo(6, 10);
+          g.stroke();
+          return c;
+        }
         const color = DROP_COLORS[id] || TILE_COLORS[id] || "#ffffff";
         px(0, 0, 16, 16, "rgba(0,0,0,0)");
         px(2, 2, 12, 12, color);
