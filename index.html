@@ -316,6 +316,17 @@
 
     const ITEM_TEXTURE_PATHS = {
       grass_drop: "generated:item:grass_drop",
+      dirt: "generated:item:dirt",
+      sand: "generated:item:sand",
+      stone: "generated:item:stone",
+      coal: "generated:item:coal",
+      iron: "generated:item:iron",
+      gold: "generated:item:gold",
+      diamond: "generated:item:diamond",
+      wood: "generated:item:wood",
+      leaf: "generated:item:leaf",
+      wood_plank: "generated:item:wood_plank",
+      crafting_table: "generated:item:crafting_table",
       raw_pork: "generated:item:raw_pork",
       wool: "generated:item:wool",
       mutton: "generated:item:mutton",
@@ -328,9 +339,7 @@
       bow: "generated:item:bow",
       arrow: "generated:item:arrow",
       string: "generated:item:string",
-      spider_eye: "generated:item:spider_eye",
-      wood_plank: "assets/textures/tiles/planks.png",
-      crafting_table: "generated:item:crafting_table"
+      spider_eye: "generated:item:spider_eye"
     };
 
     const VANILLA_ITEM_TEXTURE_PATHS = {
@@ -348,7 +357,16 @@
       spider_eye: `${VANILLA_TEXTURE_BASE}/item/spider_eye.png`,
       wool: `${VANILLA_TEXTURE_BASE}/block/white_wool.png`,
       wood_plank: `${VANILLA_TEXTURE_BASE}/block/oak_planks.png`,
-      crafting_table: `${VANILLA_TEXTURE_BASE}/item/crafting_table.png`
+      crafting_table: `${VANILLA_TEXTURE_BASE}/item/crafting_table.png`,
+      coal: `${VANILLA_TEXTURE_BASE}/item/coal.png`,
+      iron: `${VANILLA_TEXTURE_BASE}/item/iron_ingot.png`,
+      gold: `${VANILLA_TEXTURE_BASE}/item/gold_ingot.png`,
+      diamond: `${VANILLA_TEXTURE_BASE}/item/diamond.png`,
+      wood: `${VANILLA_TEXTURE_BASE}/block/oak_log.png`,
+      leaf: `${VANILLA_TEXTURE_BASE}/block/oak_leaves.png`,
+      dirt: `${VANILLA_TEXTURE_BASE}/block/dirt.png`,
+      sand: `${VANILLA_TEXTURE_BASE}/block/sand.png`,
+      stone: `${VANILLA_TEXTURE_BASE}/block/stone.png`
     };
 
     const VANILLA_ENTITY_TEXTURE_PATHS = {
@@ -555,6 +573,335 @@
           g.stroke();
           return c;
         }
+
+        function oreItem(oreColor, sparkleColor) {
+          px(1, 1, 14, 14, "#8d8d8d");
+          px(1, 1, 14, 1, "#a8a8a8");
+          px(1, 14, 14, 1, "#6a6a6a");
+          px(1, 1, 1, 14, "#a0a0a0");
+          px(14, 1, 1, 14, "#707070");
+          px(3, 3, 2, 2, oreColor);
+          px(9, 2, 2, 1, oreColor);
+          px(2, 7, 3, 2, oreColor);
+          px(10, 8, 3, 2, oreColor);
+          px(6, 11, 2, 2, oreColor);
+          px(12, 4, 1, 2, oreColor);
+          if (sparkleColor) {
+            px(4, 4, 1, 1, sparkleColor);
+            px(11, 9, 1, 1, sparkleColor);
+            px(7, 12, 1, 1, sparkleColor);
+          }
+          g.strokeStyle = "rgba(0,0,0,0.45)";
+          g.strokeRect(1.5, 1.5, 13, 13);
+          return c;
+        }
+
+        function blockItem(baseColor, patternRows) {
+          px(1, 1, 14, 14, baseColor);
+          if (patternRows) {
+            for (let y = 0; y < patternRows.length && y < 14; y++) {
+              const row = patternRows[y];
+              for (let x = 0; x < row.length && x < 14; x++) {
+                const color = row[x];
+                if (color) px(1 + x, 1 + y, 1, 1, color);
+              }
+            }
+          }
+          g.strokeStyle = "rgba(0,0,0,0.4)";
+          g.strokeRect(1.5, 1.5, 13, 13);
+          return c;
+        }
+
+        if (id === "grass_drop") {
+          const dirt = loadedImages.get("assets/textures/tiles/dirt.png");
+          if (dirt) {
+            const t = getScaledImage(dirt, 14);
+            if (t) g.drawImage(t, 1, 3, 14, 12);
+          } else {
+            px(1, 3, 14, 12, "#8b5a2b");
+          }
+          px(1, 1, 14, 2, "#3cae4a");
+          px(1, 3, 14, 1, "#2e8b3d");
+          px(2, 1, 1, 1, "#5ed46a");
+          px(5, 1, 1, 1, "#5ed46a");
+          px(9, 1, 1, 1, "#5ed46a");
+          px(13, 1, 1, 1, "#5ed46a");
+          px(2, 5, 2, 1, "#744a22");
+          px(8, 7, 2, 1, "#744a22");
+          px(5, 11, 2, 1, "#744a22");
+          g.strokeStyle = "rgba(0,0,0,0.45)";
+          g.strokeRect(1.5, 1.5, 13, 13);
+          return c;
+        }
+
+        if (id === "dirt") {
+          const dirt = loadedImages.get("assets/textures/tiles/dirt.png");
+          if (dirt) {
+            const t = getScaledImage(dirt, 14);
+            if (t) g.drawImage(t, 1, 1, 14, 14);
+          } else {
+            blockItem("#8b5a2b", [
+              [null,null,"#744a22",null,null,null,null,"#744a22",null,null,null,null,null,null],
+              [null,null,null,null,"#744a22",null,null,null,null,null,null,"#744a22",null,null],
+              [null,"#744a22",null,null,null,null,null,null,null,"#744a22",null,null,null,null],
+              [null,null,null,"#6d4520",null,null,null,null,null,null,null,null,"#6d4520",null],
+              [null,null,null,null,null,"#6d4520",null,null,"#6d4520",null,null,null,null,null],
+              [null,"#a77039",null,null,null,null,null,null,null,null,"#a77039",null,null,null]
+            ]);
+          }
+          g.strokeStyle = "rgba(0,0,0,0.4)";
+          g.strokeRect(1.5, 1.5, 13, 13);
+          return c;
+        }
+
+        if (id === "sand") {
+          blockItem("#e8d69a", [
+            [null,null,"#d4c080",null,null,null,null,null,null,null,"#d4c080",null,null,null],
+            [null,null,null,null,null,"#d4c080",null,null,"#d4c080",null,null,null,null,null],
+            ["#d4c080",null,null,null,null,null,"#b8a26a",null,null,null,null,null,null,null],
+            [null,null,"#b8a26a",null,null,null,null,null,null,null,null,"#b8a26a",null,null],
+            [null,null,null,null,null,null,"#d4c080",null,null,null,null,null,null,"#d4c080"],
+            [null,"#b8a26a",null,null,null,null,null,null,"#b8a26a",null,null,null,null,null]
+          ]);
+          return c;
+        }
+
+        if (id === "stone") {
+          const stone = loadedImages.get("assets/textures/tiles/stone.png");
+          if (stone) {
+            const t = getScaledImage(stone, 14);
+            if (t) g.drawImage(t, 1, 1, 14, 14);
+          } else {
+            blockItem("#8d8d8d", [
+              [null,null,"#757575",null,null,null,null,null,null,null,"#757575",null,null,null],
+              [null,null,null,null,null,"#a3a3a3",null,"#757575",null,null,null,null,null,null],
+              ["#757575",null,null,null,null,null,null,null,null,null,null,null,null,"#a3a3a3"],
+              [null,null,"#a3a3a3",null,null,"#757575",null,null,null,null,null,"#757575",null,null],
+              [null,null,null,null,null,null,null,"#a3a3a3",null,null,null,null,null,null],
+              [null,"#757575",null,null,null,null,null,null,null,"#757575",null,null,null,null]
+            ]);
+          }
+          g.strokeStyle = "rgba(0,0,0,0.4)";
+          g.strokeRect(1.5, 1.5, 13, 13);
+          return c;
+        }
+
+        if (id === "coal") return oreItem("#1a1a1a");
+        if (id === "iron") return oreItem("#f2994a", "#ffd49e");
+        if (id === "gold") return oreItem("#f2d94e", "#fff39a");
+        if (id === "diamond") return oreItem("#00f5ff", "#b6fbff");
+
+        if (id === "wood") {
+          const wood = loadedImages.get("assets/textures/tiles/log.png");
+          if (wood) {
+            const t = getScaledImage(wood, 14);
+            if (t) g.drawImage(t, 1, 1, 14, 14);
+          } else {
+            px(1, 1, 14, 14, "#9c6b30");
+            px(4, 4, 8, 8, "#d9a15b");
+            px(5, 5, 6, 6, "#c08b46");
+            px(7, 7, 2, 2, "#8b5e28");
+            for (let y = 1; y < 15; y += 2) px(1, y, 14, 1, "#8b5e28");
+          }
+          g.strokeStyle = "rgba(0,0,0,0.4)";
+          g.strokeRect(1.5, 1.5, 13, 13);
+          return c;
+        }
+
+        if (id === "leaf") {
+          px(1, 1, 14, 14, "#3cae4a");
+          px(2, 2, 2, 2, "#5ed46a");
+          px(7, 2, 2, 2, "#5ed46a");
+          px(11, 3, 2, 2, "#5ed46a");
+          px(4, 6, 2, 2, "#5ed46a");
+          px(9, 7, 2, 2, "#5ed46a");
+          px(3, 10, 2, 2, "#5ed46a");
+          px(10, 11, 2, 2, "#5ed46a");
+          px(6, 12, 2, 2, "#5ed46a");
+          px(3, 3, 1, 1, "#2e8b3d");
+          px(12, 7, 1, 1, "#2e8b3d");
+          px(7, 11, 1, 1, "#2e8b3d");
+          g.strokeStyle = "rgba(0,0,0,0.45)";
+          g.strokeRect(1.5, 1.5, 13, 13);
+          return c;
+        }
+
+        if (id === "wood_plank") {
+          const planks = loadedImages.get("assets/textures/tiles/planks.png");
+          if (planks) {
+            const t = getScaledImage(planks, 14);
+            if (t) g.drawImage(t, 1, 1, 14, 14);
+          } else {
+            px(1, 1, 14, 14, "#c58a43");
+            for (let y = 1; y < 15; y += 4) {
+              px(1, y + 3, 14, 1, "#8b5a2b");
+            }
+            for (let x = 1; x < 15; x += 5) {
+              px(x, 1, 1, 14, "#8b5a2b");
+            }
+          }
+          g.strokeStyle = "rgba(0,0,0,0.4)";
+          g.strokeRect(1.5, 1.5, 13, 13);
+          return c;
+        }
+
+        function meatItem(base, fatColor, darkColor) {
+          px(3, 2, 10, 12, base);
+          px(2, 4, 12, 8, base);
+          px(4, 1, 8, 1, base);
+          px(4, 14, 8, 1, base);
+          px(5, 3, 2, 2, fatColor);
+          px(10, 5, 2, 1, fatColor);
+          px(7, 9, 3, 2, fatColor);
+          px(4, 11, 1, 1, darkColor);
+          px(12, 7, 1, 1, darkColor);
+          px(8, 12, 2, 1, darkColor);
+          g.strokeStyle = "rgba(0,0,0,0.5)";
+          g.strokeRect(2.5, 2.5, 11, 11);
+          return c;
+        }
+
+        if (id === "raw_pork") return meatItem("#ff9dad", "#ffd9de", "#d46b7d");
+        if (id === "mutton") return meatItem("#c67b6e", "#e9b0a5", "#9a5850");
+        if (id === "raw_beef") return meatItem("#b45443", "#d98572", "#8a3930");
+        if (id === "fish_meat") return meatItem("#ffb38a", "#ffd9bd", "#d6835a");
+
+        if (id === "rotten_flesh") {
+          px(3, 2, 10, 12, "#8f5d4a");
+          px(2, 4, 12, 8, "#8f5d4a");
+          px(4, 1, 8, 1, "#8f5d4a");
+          px(5, 3, 2, 2, "#6b3e30");
+          px(10, 4, 2, 2, "#57b64a");
+          px(7, 8, 3, 2, "#6b3e30");
+          px(4, 11, 2, 2, "#57b64a");
+          px(11, 10, 2, 1, "#57b64a");
+          px(8, 12, 2, 1, "#6b3e30");
+          g.strokeStyle = "rgba(0,0,0,0.5)";
+          g.strokeRect(2.5, 2.5, 11, 11);
+          return c;
+        }
+
+        if (id === "leather") {
+          px(3, 3, 10, 10, "#8a5a2b");
+          px(2, 4, 12, 8, "#8a5a2b");
+          px(3, 3, 10, 1, "#a77139");
+          px(3, 3, 1, 10, "#a77139");
+          px(5, 6, 2, 1, "#6d4520");
+          px(9, 8, 3, 1, "#6d4520");
+          px(6, 11, 4, 1, "#6d4520");
+          g.strokeStyle = "rgba(0,0,0,0.5)";
+          g.strokeRect(2.5, 3.5, 11, 9);
+          return c;
+        }
+
+        if (id === "ink_sac") {
+          px(4, 3, 8, 10, "#2b2b3a");
+          px(3, 5, 10, 6, "#2b2b3a");
+          px(5, 2, 6, 1, "#2b2b3a");
+          px(5, 13, 6, 1, "#2b2b3a");
+          px(6, 6, 2, 2, "#4a4a60");
+          px(9, 9, 2, 2, "#4a4a60");
+          px(4, 4, 1, 1, "#4a4a60");
+          px(2, 8, 2, 1, "#1e1e2c");
+          px(12, 6, 1, 1, "#1e1e2c");
+          g.strokeStyle = "rgba(255,255,255,0.2)";
+          g.strokeRect(3.5, 3.5, 9, 9);
+          return c;
+        }
+
+        if (id === "bone") {
+          px(7, 2, 2, 12, "#e8e6d6");
+          px(3, 2, 10, 2, "#e8e6d6");
+          px(3, 12, 10, 2, "#e8e6d6");
+          px(2, 3, 2, 2, "#e8e6d6");
+          px(12, 3, 2, 2, "#e8e6d6");
+          px(2, 11, 2, 2, "#e8e6d6");
+          px(12, 11, 2, 2, "#e8e6d6");
+          px(4, 3, 1, 1, "#cfccc0");
+          px(11, 12, 1, 1, "#cfccc0");
+          px(8, 8, 1, 1, "#cfccc0");
+          g.strokeStyle = "rgba(0,0,0,0.3)";
+          g.strokeRect(2.5, 2.5, 11, 11);
+          return c;
+        }
+
+        if (id === "wool") {
+          px(1, 1, 14, 14, "#f2f2f2");
+          const curl = "#e0e0e0";
+          const hi = "#ffffff";
+          px(3, 2, 2, 2, curl); px(8, 2, 2, 2, curl); px(12, 3, 2, 2, curl);
+          px(2, 5, 2, 2, curl); px(6, 6, 2, 2, curl); px(11, 6, 2, 2, curl);
+          px(3, 9, 2, 2, curl); px(8, 10, 2, 2, curl); px(12, 11, 2, 2, curl);
+          px(2, 12, 2, 2, curl); px(6, 12, 2, 2, curl);
+          px(4, 4, 1, 1, hi); px(10, 5, 1, 1, hi); px(5, 11, 1, 1, hi);
+          g.strokeStyle = "rgba(0,0,0,0.2)";
+          g.strokeRect(1.5, 1.5, 13, 13);
+          return c;
+        }
+
+        if (id === "string") {
+          px(2, 2, 12, 1, "#f0f0f0");
+          px(12, 2, 1, 12, "#f0f0f0");
+          px(2, 13, 12, 1, "#f0f0f0");
+          px(2, 2, 1, 12, "#f0f0f0");
+          px(3, 4, 2, 1, "#d9d9d9");
+          px(7, 5, 2, 1, "#d9d9d9");
+          px(5, 8, 2, 1, "#d9d9d9");
+          px(10, 9, 2, 1, "#d9d9d9");
+          px(4, 11, 2, 1, "#d9d9d9");
+          px(9, 11, 2, 1, "#d9d9d9");
+          g.strokeStyle = "rgba(0,0,0,0.25)";
+          g.strokeRect(2.5, 2.5, 11, 11);
+          return c;
+        }
+
+        if (id === "spider_eye") {
+          px(4, 3, 8, 10, "#b63b3b");
+          px(3, 5, 10, 6, "#b63b3b");
+          px(5, 2, 6, 1, "#b63b3b");
+          px(7, 6, 2, 4, "#ffffff");
+          px(7, 7, 2, 2, "#0f0f0f");
+          px(6, 5, 1, 1, "#ff6f6f");
+          px(10, 8, 1, 1, "#ff6f6f");
+          px(5, 10, 1, 1, "#7d2525");
+          px(11, 5, 1, 1, "#7d2525");
+          g.strokeStyle = "rgba(0,0,0,0.55)";
+          g.strokeRect(3.5, 3.5, 9, 9);
+          return c;
+        }
+
+        if (id === "arrow") {
+          px(2, 8, 9, 1, "#cfcfcf");
+          px(3, 7, 8, 1, "#cfcfcf");
+          px(11, 6, 2, 1, "#888888");
+          px(11, 7, 3, 2, "#888888");
+          px(11, 10, 2, 1, "#888888");
+          px(1, 6, 2, 1, "#ffffff");
+          px(1, 7, 3, 1, "#ffffff");
+          px(1, 9, 3, 1, "#ffffff");
+          px(1, 10, 2, 1, "#ffffff");
+          px(2, 5, 1, 1, "#ffffff");
+          px(2, 11, 1, 1, "#ffffff");
+          return c;
+        }
+
+        if (id === "bow") {
+          g.strokeStyle = "#b67a3c";
+          g.lineWidth = 2;
+          g.beginPath();
+          g.arc(7, 8, 6, -Math.PI / 2.2, Math.PI / 2.2);
+          g.stroke();
+          g.strokeStyle = "#ffffff";
+          g.lineWidth = 1;
+          g.beginPath();
+          g.moveTo(3, 2);
+          g.lineTo(3, 14);
+          g.stroke();
+          px(4, 2, 2, 2, "#8b5a2b");
+          px(4, 12, 2, 2, "#8b5a2b");
+          return c;
+        }
+
         const color = DROP_COLORS[id] || TILE_COLORS[id] || "#ffffff";
         px(0, 0, 16, 16, "rgba(0,0,0,0)");
         px(2, 2, 12, 12, color);
