@@ -82,6 +82,62 @@
       background: rgba(0, 0, 0, 0.7);
       z-index: 30;
     }
+    .tutorial-overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.68);
+      z-index: 32;
+    }
+    .tutorial-panel {
+      background: rgba(20, 20, 20, 0.96);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 12px;
+      padding: 24px 28px;
+      min-width: 420px;
+      max-width: 520px;
+      line-height: 1.8;
+      font-size: 14px;
+      color: #f2f2f2;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+    .tutorial-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      color: #8ec5ff;
+    }
+    .tutorial-row {
+      margin: 6px 0;
+    }
+    .tutorial-key {
+      display: inline-block;
+      padding: 1px 7px;
+      margin-right: 6px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      color: #fff;
+    }
+    .tutorial-footer {
+      margin-top: 18px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .close-tutorial-btn {
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      background: rgba(46, 125, 50, 0.9);
+      color: #ffffff;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 14px;
+      cursor: pointer;
+    }
     .death-panel {
       background: rgba(20, 20, 20, 0.95);
       border: 1px solid rgba(255, 255, 255, 0.35);
@@ -136,6 +192,22 @@
       <div class="death-title">你已死亡</div>
       <button id="reviveBtn" class="revive-btn">是否复活</button>
       <button id="resetGameBtn" class="reset-btn">重置游戏</button>
+    </div>
+  </div>
+  <div id="tutorialOverlay" class="tutorial-overlay">
+    <div class="tutorial-panel">
+      <div class="tutorial-title">操作教学</div>
+      <div class="tutorial-row"><span class="tutorial-key">A</span><span class="tutorial-key">D</span>左右移动</div>
+      <div class="tutorial-row"><span class="tutorial-key">Space</span>跳跃 / 水中上浮</div>
+      <div class="tutorial-row"><span class="tutorial-key">鼠标左键</span>攻击生物 / 破坏方块</div>
+      <div class="tutorial-row"><span class="tutorial-key">鼠标右键</span>放置手持方块 / 弓蓄力（按住不放）</div>
+      <div class="tutorial-row"><span class="tutorial-key">E</span>打开 / 关闭背包（背包内含工作台合成）</div>
+      <div class="tutorial-row"><span class="tutorial-key">1</span>~<span class="tutorial-key">9</span>选择快捷栏对应物品</div>
+      <div class="tutorial-row"><span class="tutorial-key">T</span>打开 / 关闭本教学面板</div>
+      <div class="tutorial-row"><span class="tutorial-key">ESC</span>关闭本教学面板，继续游戏</div>
+      <div class="tutorial-footer">
+        <button id="closeTutorialBtn" class="close-tutorial-btn">继续游戏（ESC / T）</button>
+      </div>
     </div>
   </div>
   <canvas id="game"></canvas>
@@ -719,8 +791,21 @@
     const deathOverlay = document.getElementById("deathOverlay");
     const reviveBtn = document.getElementById("reviveBtn");
     const resetGameBtn = document.getElementById("resetGameBtn");
+    const tutorialOverlay = document.getElementById("tutorialOverlay");
+    const closeTutorialBtn = document.getElementById("closeTutorialBtn");
     let gameMode = "survival";
     let isDead = false;
+    let tutorialOpen = false;
+    let isPaused = false;
+
+    function setTutorialOpen(open) {
+      tutorialOpen = open;
+      isPaused = open;
+      tutorialOverlay.style.display = open ? "flex" : "none";
+    }
+    function toggleTutorial() {
+      setTutorialOpen(!tutorialOpen);
+    }
     const DAY_NIGHT_CYCLE = 25 * 60;
     const NIGHT_START = 20 * 60;
     let PLAYER_SPAWN = {
@@ -743,6 +828,7 @@
     timeToggleBtn.addEventListener("click", toggleDayNight);
     reviveBtn.addEventListener("click", revivePlayer);
     resetGameBtn.addEventListener("click", resetWholeGame);
+    closeTutorialBtn.addEventListener("click", () => setTutorialOpen(false));
 
     function setGameMode(mode) {
       gameMode = mode;
@@ -1387,8 +1473,16 @@
     };
 
     window.addEventListener("keydown", (e) => {
-      if (["KeyA", "KeyD", "Space", "KeyE", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"].includes(e.code)) {
+      if (["KeyA", "KeyD", "Space", "KeyE", "KeyT", "Escape", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"].includes(e.code)) {
         e.preventDefault();
+      }
+      if (e.code === "KeyT" && !e.repeat) {
+        toggleTutorial();
+      }
+      if (e.code === "Escape" && !e.repeat) {
+        if (tutorialOpen) {
+          setTutorialOpen(false);
+        }
       }
       if (e.code === "KeyE" && !e.repeat) {
         inventoryOpen = !inventoryOpen;
@@ -3038,10 +3132,12 @@
       const rawDt = (now - lastTime) / 1000;
       lastTime = now;
       const dt = Math.min(rawDt, 0.033);
-      timeSeconds += dt;
-      updateTimeToggleLabel();
+      if (!isPaused) {
+        timeSeconds += dt;
+        updateTimeToggleLabel();
+      }
 
-      if (!isDead) {
+      if (!isDead && !isPaused) {
         updatePlayer(dt);
         resetGameIfPlayerDead();
         updateAnimals(dt);
