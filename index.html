@@ -1900,6 +1900,10 @@
           drops.splice(i, 1);
           continue;
         }
+        if (isEntityInLava(drop)) {
+          drops.splice(i, 1);
+          continue;
+        }
 
         const centerTx = Math.floor((drop.x + drop.w / 2) / TILE_SIZE);
         const centerTy = Math.floor((drop.y + drop.h / 2) / TILE_SIZE);
