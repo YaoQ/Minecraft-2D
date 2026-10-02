@@ -1504,7 +1504,7 @@
       if (isLanded) {
         const fallPx = Math.max(0, entity.y - entity.airbornePeakY);
         const fallBlocks = fallPx / TILE_SIZE;
-        const damage = Math.max(0, fallBlocks - thresholdBlocks);
+        const damage = Math.max(0, Math.floor(fallBlocks - thresholdBlocks));
         if (damage > 0) applyDamage(entity, damage);
       }
     }
