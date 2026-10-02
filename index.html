@@ -1630,7 +1630,7 @@
     }
 
     function applyDamage(entity, amount) {
-      if (!entity || amount <= 0 || entity.hp <= 0) {
+      if (!entity || amount <= 0 || entity.hp <= 0 || entity.hurtTimer > 0) {
         return;
       }
       if (entity === player && gameMode === "creative") {
