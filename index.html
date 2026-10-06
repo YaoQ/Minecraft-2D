@@ -2236,6 +2236,11 @@
     }
 
     function updateDrops(dt) {
+      const MAX_DROPS = 200;
+      if (drops.length > MAX_DROPS) {
+        drops.splice(0, drops.length - MAX_DROPS);
+      }
+
       const pickupRadius = 28;
       const playerCenterX = player.x + player.w / 2;
       const playerCenterY = player.y + player.h / 2;
