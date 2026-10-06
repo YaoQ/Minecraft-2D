@@ -126,8 +126,22 @@
     .tutorial-footer {
       margin-top: 18px;
       display: flex;
-      justify-content: flex-end;
+      justify-content: space-between;
+      align-items: center;
       gap: 10px;
+    }
+    .tutorial-footer-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #e6e6e6;
+    }
+    .tutorial-checkbox {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: #4caf50;
     }
     .close-tutorial-btn {
       border: 1px solid rgba(255, 255, 255, 0.45);
@@ -206,6 +220,10 @@
       <div class="tutorial-row"><span class="tutorial-key">T</span>打开 / 关闭本教学面板</div>
       <div class="tutorial-row"><span class="tutorial-key">ESC</span>关闭本教学面板，继续游戏</div>
       <div class="tutorial-footer">
+        <label class="tutorial-footer-left">
+          <input id="infiniteArrowsToggle" class="tutorial-checkbox" type="checkbox" />
+          <span>无限箭（射出不消耗）</span>
+        </label>
         <button id="closeTutorialBtn" class="close-tutorial-btn">继续游戏（ESC / T）</button>
       </div>
     </div>
@@ -1140,19 +1158,27 @@
     const resetGameBtn = document.getElementById("resetGameBtn");
     const tutorialOverlay = document.getElementById("tutorialOverlay");
     const closeTutorialBtn = document.getElementById("closeTutorialBtn");
+    const infiniteArrowsToggle = document.getElementById("infiniteArrowsToggle");
     let gameMode = "survival";
     let isDead = false;
     let tutorialOpen = false;
     let isPaused = false;
+    let infiniteArrows = false;
 
     function setTutorialOpen(open) {
       tutorialOpen = open;
       isPaused = open;
       tutorialOverlay.style.display = open ? "flex" : "none";
+      if (open && infiniteArrowsToggle) {
+        infiniteArrowsToggle.checked = infiniteArrows;
+      }
     }
     function toggleTutorial() {
       setTutorialOpen(!tutorialOpen);
     }
+    infiniteArrowsToggle.addEventListener("change", () => {
+      infiniteArrows = infiniteArrowsToggle.checked;
+    });
     const DAY_NIGHT_CYCLE = 25 * 60;
     const NIGHT_START = 20 * 60;
     let PLAYER_SPAWN = {
@@ -2784,7 +2810,7 @@
       if (player.bowCooldown > 0) {
         return true;
       }
-      if (gameMode === "survival") {
+      if (gameMode === "survival" && !infiniteArrows) {
         if (!removeFromInventory("arrow", 1)) {
           return true;
         }
